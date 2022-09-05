@@ -1,3 +1,3 @@
 # LevyGAN
 
-Most of the magic is in Levy2d.ipynb
+Most of the magic is in MainLevyGAN.ipynb
