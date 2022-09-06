@@ -7,7 +7,7 @@ test:
 using LevyArea
 using DelimitedFiles
 
-function gen_samples(;its::Int64 = 65536,m::Int64 = 2,h:: Float64 = 0.001,err:: Float64 = 0.005,fixed:: Bool = false, W:: Array{Float64} = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7])
+function gen_samples(;its::Int64 = 65536,m::Int64 = 2,h:: Float64 = 1.0,err:: Float64 = 0.0005,fixed:: Bool = false, W:: Array{Float64} = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7])
 
     resDim = Int64(m*(m+1)/2)
     results = Array{Float64}(undef,its,resDim)
@@ -32,9 +32,9 @@ function gen_samples(;its::Int64 = 65536,m::Int64 = 2,h:: Float64 = 0.001,err:: 
             end
         end
 
-        if i%100 == 0
-            println(i)
-        end
+        # if i%100 == 0
+        #     println(i)
+        # end
     end
 
     filename = "samples/samples_$m-dim.csv"
@@ -43,4 +43,20 @@ function gen_samples(;its::Int64 = 65536,m::Int64 = 2,h:: Float64 = 0.001,err:: 
     end
 
     writedlm(filename, results, ',')
+end
+
+function time_measure(its, m, h, err)
+    W = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7]
+    W = W[1:m]
+    for i in 1:its
+        iterated_integrals(W,h,err)
+    end
+end
+
+function generate_all()
+    for i in 2:8
+        gen_samples(its = 1048576, m = i)
+        gen_samples(m = i, fixed = true)
+        println("$i done")
+    end
 end
