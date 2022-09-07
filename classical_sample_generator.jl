@@ -60,3 +60,16 @@ function generate_all()
         println("$i done")
     end
 end
+
+function list_pairs(m)
+    resDim = Int64(m*(m-1)/2)
+    res = Array{Tuple{Int64,Int64}}(undef,resDim)
+    idx:: Int = 1
+    for k in 1:m
+        for l in (k+1):m
+            res[idx] = (k,l)
+            idx +=1
+        end
+    end
+    println(res)
+end
