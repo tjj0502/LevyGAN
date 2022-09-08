@@ -42,6 +42,8 @@ function gen_samples(;its::Int64 = 65536,m::Int64 = 2,h:: Float64 = 1.0,err:: Fl
         filename = "samples/fixed_samples_$m-dim.csv"
     end
 
+    filename = "high_prec_samples.csv"
+
     writedlm(filename, results, ',')
 end
 
