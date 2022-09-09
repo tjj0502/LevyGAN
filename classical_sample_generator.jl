@@ -7,7 +7,10 @@ test:
 using LevyArea
 using DelimitedFiles
 
-function gen_samples(;its::Int64 = 65536,m::Int64 = 2,h:: Float64 = 1.0,err:: Float64 = 0.0005,fixed:: Bool = false, W:: Array{Float64} = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7])
+function gen_samples(;its::Int64 = 65536,m::Int64 = 2,h:: Float64 = 1.0,
+    err:: Float64 = 0.0001,fixed:: Bool = false,
+    W:: Array{Float64} = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7],
+    filename = "")
 
     resDim = Int64(m*(m+1)/2)
     results = Array{Float64}(undef,its,resDim)
@@ -37,12 +40,14 @@ function gen_samples(;its::Int64 = 65536,m::Int64 = 2,h:: Float64 = 1.0,err:: Fl
         # end
     end
 
-    filename = "samples/samples_$m-dim.csv"
-    if fixed
-        filename = "samples/fixed_samples_$m-dim.csv"
+    if filename == ""
+        filename = "samples/samples_$m-dim.csv"
+        if fixed
+            filename = "samples/fixed_samples_$m-dim.csv"
+        end
     end
 
-    filename = "high_prec_samples.csv"
+    # filename = "high_prec_samples.csv"
 
     writedlm(filename, results, ',')
 end
