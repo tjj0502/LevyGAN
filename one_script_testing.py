@@ -202,7 +202,7 @@ def main():
 
     class Generator3(nn.Module):
         def __init__(self):
-            super(Generator1, self).__init__()
+            super(Generator3, self).__init__()
             self.main = nn.Sequential(
                 nn.Linear(w_dim + noise_size, 512),
                 nn.BatchNorm1d(512),
@@ -220,7 +220,7 @@ def main():
 
     class Discriminator3(nn.Module):
         def __init__(self):
-            super(Discriminator1, self).__init__()
+            super(Discriminator3, self).__init__()
             self.main = nn.Sequential(
                 nn.Linear(w_dim + a_dim, 512),
                 nn.BatchNorm1d(512),
@@ -346,7 +346,7 @@ def main():
                     # Print out partial results
                     pretty_errors = ["{0:0.5f}".format(i) for i in errors]
                     # pretty_chen_errors = ["{0:0.5f}".format(i) for i in ch_err]
-                    print(f"epoch: {epoch}/{num_epochs}, iter: {iters},\n errors: {pretty_errors}")
+                    print(f"trial: {trial}/{num_trials},  epoch: {epoch}/{num_epochs}, iter: {iters},\n errors: {pretty_errors}")
 
                     # Early stopping checkpoint
                     error_sum = sum(errors)
