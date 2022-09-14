@@ -68,6 +68,34 @@ function generate_all()
     end
 end
 
+function gen_all_fixed_2d()
+
+    W:: Array{Float64} = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7]
+    idx = 1
+
+    for k in 1:9
+        for l in (k+1):9
+            results = Array{Float64}(undef,65536,3)
+
+            w = [W[k],W[l]]
+            for i in 1:65536
+                II = iterated_integrals(w, 1.0, 0.0001)
+                a = 0.5* (II[1,2] - II[2,1])
+                results[i,:] = [W[k],W[l],a]
+            end
+
+            filename = "samples/fixed_samples_2-dim$idx.csv"
+            writedlm(filename, results, ',')
+            println("($(W[k]), $(W[l])) done")
+
+            idx += 1
+        end
+    end
+
+
+end
+
+
 function list_pairs(m)
     resDim = Int64(m*(m-1)/2)
     res = Array{Tuple{Int64,Int64}}(undef,resDim)
