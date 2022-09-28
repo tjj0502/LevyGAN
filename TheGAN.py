@@ -195,7 +195,7 @@ class LevyGAN:
         difference = np.abs(self.st_dev_W_fixed - np.sqrt(np.abs(empirical_second_moments(_a_generated))))
         return difference.mean()
 
-    def report_generator_errors(self, epoch: int = None, iter: int = None):
+    def make_report(self, epoch: int = None, iter: int = None):
         report = ""
         if not (epoch is None or iter is None):
             report = f"epoch: {epoch}/{self.num_epochs}, iter: {iter}, "
@@ -219,7 +219,7 @@ class LevyGAN:
         lossD = lossD_fake - self.s_dim * lossD_real
 
         pretty_chen_errors = make_pretty(chen_error_3step(fake_data, self.w_dim))
-        report += f"gradient norm: {gradient_norm:.4f}, discriminator dist: {(lossD_fake - lossD_real).item():.7f}, joint_wass_dist: {joint_wass_dist: .5f}"
+        report += f"gradient norm: {gradient_norm:.4f}, discriminator dist: {lossD.item():.7f}"
 
         # Test Wasserstein error for fixed W
         if self.w_dim > 2:
@@ -231,17 +231,17 @@ class LevyGAN:
             st_dev_err = self.avg_st_dev_error(A_fixed_gen)
             joint_err = joint_wass_dist(self.A_fixed_true[:1000],A_fixed_gen[:1000])
             pretty_chen_errors = make_pretty(self.chen_errors())
-            report += f", st_dev error: {st_dev_err: .4f}\nerrs: {pretty_errors}, ch_err: {pretty_chen_errors}"
+            report += f", st_dev error: {st_dev_err: .4f}, joint_wass_dist: {joint_err: .5f}\nerrs: {pretty_errors}, ch_err: {pretty_chen_errors} "
         else:
             pretty_errors = make_pretty(self.all_2dim_errors())
             report += f"\nerrs: {pretty_errors}, ch_err: {pretty_chen_errors[0]}"
         return report
 
-    def load_dicts(self, descriptor: str):
+    def load_dicts(self, descriptor: str = ""):
         self.netG.load_state_dict(torch.load(f'model_saves/generator{self.which_generator}_{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise_{descriptor}.pt'))
         self.netD.load_state_dict(torch.load(f'model_saves/discriminator{self.which_discriminator}_{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise_{descriptor}.pt'))
 
-    def save_dicts(self, descriptor: str):
+    def save_dicts(self, descriptor: str = ""):
         paramsD = copy.deepcopy(self.netD.state_dict())
         paramsG = copy.deepcopy(self.netG.state_dict())
         torch.save(paramsD, f'model_saves/discriminator{self.which_discriminator}_{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise_{descriptor}.pt')
