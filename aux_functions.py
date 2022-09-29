@@ -13,7 +13,16 @@ from torch.autograd import grad as torch_grad
 
 config = {
     'device': torch.device('cpu'),
+    'ngpu': 0,
+    'w dim': 4,
+    'a dim': 6,
     'noise size': 62,
+    'which generator': 1,
+    'which discriminator': 1,
+    'generator symmetry mode': 'Hsym',
+    'generator last width': 6,
+    's dim': 16,
+    'leakyReLU slope': 0.2,
     'num epochs': 20,
     'num Chen iters': 5000,
     'optimizer': 'Adam',
@@ -21,19 +30,10 @@ config = {
     'lrD': 0.0005,
     'beta1': 0,
     'beta2': 0.99,
-    'ngpu': 0,
     'weight clipping limit': 0.01,
     'gp weight': 10.0,
     'batch size': 1024,
     'test batch size': 65536,
-    'w dim': 4,
-    'a dim': 6,
-    'which generator': 1,
-    'which discriminator': 1,
-    'generator symmetry mode': 'Hsym',
-    'generator last width': 6,
-    's dim': 16,
-    'leakyReLU slope': 0.2,
     'num tests for 2d': 8,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7]
 }
@@ -168,20 +168,19 @@ def generate_signs(_w_dim: int):
     return res
 
 
-def generate_TMS(_w_dim: int):
+def generate_tms(_w_dim: int):
     _a_dim = int((_w_dim * (_w_dim - 1)) // 2)
     signs = torch.tensor(generate_signs(_w_dim), dtype=torch.float).view(1, 2 ** _w_dim, _w_dim).contiguous()
-    M_list = []
+    m_list = []
 
     for s in range(signs.shape[1]):
-        idx = 0
-        M_row = []
+        m_row = []
         for i in range(_w_dim):
             for j in range(i + 1, _w_dim):
-                M_row.append(signs[0, s, j].item() * signs[0, s, i].item())
-        M_list.append(M_row)
+                m_row.append(signs[0, s, j].item() * signs[0, s, i].item())
+        m_list.append(m_row)
 
-    _M = torch.tensor(M_list).unsqueeze(1).contiguous().detach()
+    _M = torch.tensor(m_list).unsqueeze(1).contiguous().detach()
     first_dim = []
     second_dim = []
     third_dim = []
@@ -199,27 +198,27 @@ def generate_TMS(_w_dim: int):
             values.append(1.0)
             idx += 1
 
-    indices = torch.Tensor[first_dim, second_dim, third_dim]
+    indices = torch.tensor([first_dim, second_dim, third_dim])
     _T = torch.sparse_coo_tensor(indices=indices, values=values, size=(_w_dim, _w_dim, _a_dim),
                                  dtype=torch.float).to_dense().contiguous().detach()
     return _T, _M, signs
 
 
-def aux_compute_wth(w_in: torch.Tensor, h_in: torch.Tensor, _S: torch.Tensor, _T: torch.Tensor, _w_dim: int):
+def aux_compute_wth(w_in: torch.Tensor, h_in: torch.Tensor, _s: torch.Tensor, _t: torch.Tensor, _w_dim: int):
     _bsz = w_in.shape[0]
     assert w_in.shape == (_bsz, _w_dim)
     assert h_in.shape == (_bsz, _w_dim)
-    _H = torch.mul(_S, h_in.view(_bsz, 1, _w_dim))
-    _WT = torch.tensordot(w_in, _T, dims=1)
+    _H = torch.mul(_s, h_in.view(_bsz, 1, _w_dim))
+    _WT = torch.tensordot(w_in, _t, dims=1)
     _WTH = torch.flatten(torch.matmul(_H, _WT).permute(1, 0, 2), start_dim=0, end_dim=1)
     return _WTH
 
 
-def aux_compute_wthmb(wth_in: torch.Tensor, b_in: torch.Tensor, _M: torch.Tensor, _w_dim):
+def aux_compute_wthmb(wth_in: torch.Tensor, b_in: torch.Tensor, _m: torch.Tensor, _w_dim):
     _a_dim = int((_w_dim * (_w_dim - 1)) // 2)
     _bsz = b_in.shape[0]
     assert wth_in.shape == (_bsz * (2 ** _w_dim), _a_dim)
     assert b_in.shape == (_bsz, _a_dim)
     _B = b_in.view(1, _bsz, _a_dim)
-    MB = torch.flatten(torch.mul(_M, _B), start_dim=0, end_dim=1)
-    return wth_in + MB
+    _MB = torch.flatten(torch.mul(_m, _B), start_dim=0, end_dim=1)
+    return wth_in + _MB

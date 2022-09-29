@@ -1,6 +1,7 @@
 import torch.nn as nn
 from models import discriminator_main
 
+
 class Discriminator(nn.Module):
     def __init__(self, cf: dict):
         super(Discriminator, self).__init__()

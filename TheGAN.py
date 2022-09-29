@@ -17,7 +17,16 @@ from Discriminator import Discriminator
 
 config = {
     'device': torch.device('cpu'),
+    'ngpu': 0,
+    'w dim': 4,
+    'a dim': 6,
     'noise size': 62,
+    'which generator': 1,
+    'which discriminator': 1,
+    'generator symmetry mode': 'Hsym',
+    'generator last width': 6,
+    's dim': 16,
+    'leakyReLU slope': 0.2,
     'num epochs': 20,
     'num Chen iters': 5000,
     'optimizer': 'Adam',
@@ -25,19 +34,10 @@ config = {
     'lrD': 0.0005,
     'beta1': 0,
     'beta2': 0.99,
-    'ngpu': 0,
     'weight clipping limit': 0.01,
     'gp weight': 10.0,
     'batch size': 1024,
     'test batch size': 65536,
-    'w dim': 4,
-    'a dim': 6,
-    'which generator': 1,
-    'which discriminator': 1,
-    'generator symmetry mode': 'Hsym',
-    'generator last width': 6,
-    's dim': 16,
-    'leakyReLU slope': 0.2,
     'num tests for 2d': 8,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7]
 }
@@ -79,7 +79,7 @@ class LevyGAN:
         # slope for LeakyReLU
         self.leakyReLU_slope = cf['leakyReLU slope']
 
-        self.T, self.M, self.S = generate_TMS(self.w_dim)
+        self.T, self.M, self.S = generate_tms(self.w_dim)
 
         # create the nets
         self.netG = Generator(cf)
