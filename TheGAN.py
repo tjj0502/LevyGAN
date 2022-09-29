@@ -39,13 +39,15 @@ config = {
     'weight clipping limit': 0.01,
     'gp weight': 10.0,
     'batch size': 1024,
-    'test batch size': 65536,
+    'test batch size': 16384,
+    'unfixed test batch size': 4096,
     'num tests for 2d': 8,
-    'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7]
+    'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
+    'do timeing': False
 }
 
 training_config = {
-    'num epochs': 20,
+    'num epochs': 2,
     'num Chen iters': 5000,
     'optimizer': 'Adam',
     'lrG': 0.0001,
@@ -136,6 +138,7 @@ class LevyGAN:
         self.num_tests_for2d = cf['num tests for 2d']
 
         self.test_batch_size = cf['test batch size']
+        self.unfixed_test_batch_size = cf['unfixed test batch size']
 
         self.W_fixed_whole = cf['W fixed whole']
         self.W_fixed = torch.tensor(self.W_fixed_whole)[:self.w_dim].unsqueeze(1).transpose(1, 0)
@@ -150,7 +153,7 @@ class LevyGAN:
 
         unfixed_test_data_filename = f"samples/non-fixed_test_samples_{self.w_dim}-dim.csv"
         self.unfixed_test_data = np.genfromtxt(unfixed_test_data_filename, dtype=float, delimiter=',')[
-                                 :self.test_batch_size]
+                                 :self.unfixed_test_batch_size]
 
         self.fixed_data_for_2d = []
         if self.w_dim == 2:
@@ -158,6 +161,8 @@ class LevyGAN:
                 np.genfromtxt(f"samples/fixed_samples_2-dim{i + 1}.csv", dtype=float, delimiter=',') for i in
                 range(self.num_tests_for2d)]
 
+        self.do_timeing = cf['do timeing']
+        self.start_time = timeit.default_timer()
     def _gradient_penalty(self, real_data, generated_data, gp_weight):
         b_size_gp = real_data.shape[0]
 
@@ -235,7 +240,7 @@ class LevyGAN:
         if not (chen_iters is None):
             report = f"chen_iters: {chen_iters}/{self.num_Chen_iters}"
 
-        data = torch.tensor(self.unfixed_test_data, dtype=torch.float)
+        data = torch.tensor(self.unfixed_test_data, dtype=torch.float, device = self.device)
         b_size = data.shape[0]
 
         noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
@@ -255,10 +260,12 @@ class LevyGAN:
         loss_d_fake = prob_fake.mean(0).view(1)
         loss_d_real = prob_real.mean(0).view(1)
         loss_d = loss_d_fake - self.s_dim * loss_d_real
+        self.print_time("UNFIXED PART OF REPORT")
 
         ch_errors = chen_error_3step(fake_data, self.w_dim)
         pretty_chen_errors = make_pretty(ch_errors)
         report += f"gradient norm: {gradient_norm:.5f}, discriminator dist: {loss_d.item():.5f}"
+        self.print_time("CHEN ERRORS")
 
         # Test Wasserstein error for fixed W
         if self.w_dim > 2:
@@ -267,12 +274,16 @@ class LevyGAN:
             a_fixed_gen = self.netG(g_in)[:, self.w_dim:self.w_dim + self.a_dim].detach().numpy()
             errors = [sqrt(ot.wasserstein_1d(self.A_fixed_true[:, i], a_fixed_gen[:, i], p=2)) for i in
                       range(self.a_dim)]
+            self.print_time("FIXED ERRORS")
+
             pretty_errors = make_pretty(errors)
             st_dev_err = self.avg_st_dev_error(a_fixed_gen)
+            self.print_time("ST DEV ERRORS")
             joint_err = ""
             if comp_joint_err:
                 joint_err =f", joint_wass_dist: {joint_wass_dist(self.A_fixed_true[:1000], a_fixed_gen[:1000]): .5f}"
-            pretty_chen_errors = make_pretty(self.chen_errors())
+            self.print_time("JOINT WASS ERRORS")
+
             report += f", st_dev error: {st_dev_err: .5f}{joint_err}{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors} "
         else:
             errors = self.all_2dim_errors()
@@ -321,8 +332,12 @@ class LevyGAN:
         torch.save(params_g, folder_name + f'generator_num{self.serial_number}_{descriptor}.pt')
         torch.save(params_d, folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt')
 
+    def print_time(self, description: str = ""):
+        if self.do_timeing:
+            elapsed = timeit.default_timer() - self.start_time
+            print(f"{description} TIME: {elapsed}")
+            self.start_time = timeit.default_timer()
     def classic_train(self, tr_conf: dict):
-        print("blub")
         # Number of training epochs using classical training
         self.num_epochs = tr_conf['num epochs']
 
@@ -382,13 +397,10 @@ class LevyGAN:
         chen_errors_through_training = []
 
         iters = 0
-        start_time = timeit.default_timer()
         for epoch in range(self.num_epochs):
 
             for i, data in enumerate(dataloader):
-                elapsed = timeit.default_timer() - start_time
-                print(f"TOP TIME: {elapsed}")
-                start_time = timeit.default_timer()
+                self.print_time("TOP")
                 self.netD.zero_grad()
                 self.netG.zero_grad()
 
@@ -399,61 +411,34 @@ class LevyGAN:
 
                 # check actual batch size (last batch could be shorter)
                 b_size = data.shape[0]
-                elapsed = timeit.default_timer() - start_time
-                print(f"bsize TIME: {elapsed}")
-                start_time = timeit.default_timer()
 
                 noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
-                elapsed = timeit.default_timer() - start_time
-                print(f"noise TIME: {elapsed}")
-                start_time = timeit.default_timer()
+
 
                 w = data[:, :self.w_dim]
                 z = torch.cat((noise, w), dim=1)
 
-                elapsed = timeit.default_timer() - start_time
-                print(f"z TIME: {elapsed}")
-                start_time = timeit.default_timer()
+
                 fake_data = self.netG(z)
-                elapsed = timeit.default_timer() - start_time
-                print(f"netG TIME: {elapsed}")
-                start_time = timeit.default_timer()
+
                 fake_data = fake_data.detach()
                 pruning_indices = torch.randperm(b_size * self.s_dim)[:b_size]
                 pruned_fake_data = fake_data[pruning_indices]
 
                 gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight= gp_weight)
-                elapsed = timeit.default_timer() - start_time
-                print(f"GP TIME: {elapsed}")
-                start_time = timeit.default_timer()
+
 
                 prob_real = self.netD(data)
-                elapsed = timeit.default_timer() - start_time
-                print(f"REAL netD TIME: {elapsed}")
-                start_time = timeit.default_timer()
                 prob_fake = self.netD(fake_data)
-                elapsed = timeit.default_timer() - start_time
-                print(f"FAKE netD TIME: {elapsed}")
-                start_time = timeit.default_timer()
 
                 loss_d_fake = prob_fake.mean(0).view(1)
                 loss_d_real = prob_real.mean(0).view(1)
                 loss_d = loss_d_fake - self.s_dim * loss_d_real
-                elapsed = timeit.default_timer() - start_time
-                print(f"lossD TIME: {elapsed}")
-                start_time = timeit.default_timer()
 
                 if self.Lipschitz_mode == 'gp':
                     loss_d += gradient_penalty
                 loss_d.backward()
-                elapsed = timeit.default_timer() - start_time
-                print(f"netD BACKPROP TIME: {elapsed}")
-                start_time = timeit.default_timer()
-
                 opt_d.step()
-                elapsed = timeit.default_timer() - start_time
-                print(f"OPT STEP TIME: {elapsed}")
-                start_time = timeit.default_timer()
 
                 # train Generator with probability 1/5
                 if iters % 5 == 0:
@@ -461,33 +446,17 @@ class LevyGAN:
                     noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
                     w = data[:, :self.w_dim]
                     z = torch.cat((noise, w), dim=1)
-                    elapsed = timeit.default_timer() - start_time
-                    print(f"z2 TIME: {elapsed}")
-                    start_time = timeit.default_timer()
                     fake_data = self.netG(z)
-                    elapsed = timeit.default_timer() - start_time
-                    print(f"netG 2 TIME: {elapsed}")
-                    start_time = timeit.default_timer()
                     lossG = self.netD(fake_data)
-                    elapsed = timeit.default_timer() - start_time
-                    print(f"netD 2 TIME: {elapsed}")
-                    start_time = timeit.default_timer()
                     lossG = - lossG.mean(0).view(1)
                     lossG.backward()
-                    elapsed = timeit.default_timer() - start_time
-                    print(f"netG BACKPROP TIME: {elapsed}")
-                    start_time = timeit.default_timer()
                     opt_g.step()
-                    elapsed = timeit.default_timer() - start_time
-                    print(f"optG TIME: {elapsed}")
-                    start_time = timeit.default_timer()
 
                 if iters % 100 == 0:
-                    report, errors, chen_errors = self.make_report(epoch=epoch, iters=iters)
+                    self.print_time(description="BEFORE REPORT")
+                    report, errors, chen_errors = self.make_report(epoch=epoch, iters=iters, comp_joint_err=True)
                     print(report)
-                    elapsed = timeit.default_timer() - start_time
-                    print(f"=============REPORT TIME: {elapsed}")
-                    start_time = timeit.default_timer()
+                    self.print_time(description="==== REPORT")
                     wass_errors_through_training.append(errors)
                     chen_errors_through_training.append(chen_errors)
                     report = report.splitlines()[1]
@@ -504,9 +473,7 @@ class LevyGAN:
                         self.save_current_dicts(report=report, descriptor="min_chen")
                         print("Saved parameters (chen errors)")
 
-                    elapsed = timeit.default_timer() - start_time
-                    print(f"SAVE DICTS TIME: {elapsed}")
-                    start_time = timeit.default_timer()
+                    self.print_time(description="SAVING DICTS")
                 iters +=1
 
         self.draw_error_graphs(wass_errors_through_training,chen_errors_through_training)
