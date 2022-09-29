@@ -242,7 +242,7 @@ class LevyGAN:
         lossD = lossD_fake - self.s_dim * lossD_real
 
         pretty_chen_errors = make_pretty(chen_error_3step(fake_data, self.w_dim))
-        report += f"gradient norm: {gradient_norm:.4f}, discriminator dist: {lossD.item():.7f}"
+        report += f"gradient norm: {gradient_norm:.5f}, discriminator dist: {lossD.item():.5f}"
 
         # Test Wasserstein error for fixed W
         if self.w_dim > 2:
@@ -255,7 +255,7 @@ class LevyGAN:
             st_dev_err = self.avg_st_dev_error(a_fixed_gen)
             joint_err = joint_wass_dist(self.A_fixed_true[:1000], a_fixed_gen[:1000])
             pretty_chen_errors = make_pretty(self.chen_errors())
-            report += f", st_dev error: {st_dev_err: .4f}, joint_wass_dist: {joint_err: .5f}{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors} "
+            report += f", st_dev error: {st_dev_err: .5f}, joint_wass_dist: {joint_err: .5f}{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors} "
         else:
             pretty_errors = make_pretty(self.all_2dim_errors())
             report += f"{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors[0]}"

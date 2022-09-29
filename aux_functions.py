@@ -155,7 +155,7 @@ def list_pairs(_w_dim: int):
 
 
 def make_pretty(errs):
-    return ["{0:0.5f}".format(i) for i in errs]
+    return ["{0:0.4f}".format(i) for i in errs]
 
 
 def generate_signs(_w_dim: int):
