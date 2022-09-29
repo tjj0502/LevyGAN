@@ -34,6 +34,7 @@ config = {
     'lrD': 0.0005,
     'beta1': 0,
     'beta2': 0.99,
+    'Lipschitz mode': 'gp',
     'weight clipping limit': 0.01,
     'gp weight': 10.0,
     'batch size': 1024,
@@ -50,6 +51,7 @@ training_config = {
     'lrD': 0.0005,
     'beta1': 0,
     'beta2': 0.99,
+    'Lipschitz mode': 'gradient penalty',
     'weight clipping limit': 0.01,
     'gp weight': 10.0,
     'batch size': 1024,
@@ -76,6 +78,9 @@ class LevyGAN:
         self.generator_symmetry_mode = cf['generator symmetry mode']
         self.generator_last_width = cf['generator last width']
 
+        # 'gp' for gradient penalty, 'wc' for weight clipping
+        self.Lipschitz_mode = cf['Lipschitz mode']
+
         # slope for LeakyReLU
         self.leakyReLU_slope = cf['leakyReLU slope']
 
@@ -85,7 +90,7 @@ class LevyGAN:
         self.netG = Generator(cf)
         self.netD = Discriminator(cf)
 
-        self.dict_saves_filename = f'_G{self.which_generator}_D{self.which_discriminator}_{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise'
+        self.dict_saves_filename = f'_G{self.which_generator}_D{self.which_discriminator}_{self.Lipschitz_mode}_{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise'
 
         # ============== Training config ===============
         # Number of training epochs using classical training
@@ -95,33 +100,33 @@ class LevyGAN:
         self.num_Chen_iters = cf['num Chen iters']
 
         # 'Adam' of 'RMSProp'
-        self.which_optimizer = cf['optimizer']
+        # self.which_optimizer = cf['optimizer']
 
         # Learning rate for optimizers
-        self.lrG = cf['lrG']
-        self.lrD = cf['lrD']
+        # self.lrG = cf['lrG']
+        # self.lrD = cf['lrD']
 
         # Beta hyperparam for Adam optimizers
-        self.beta1 = cf['beta1']
-        self.beta2 = cf['beta2']
-
-        if self.which_optimizer == 'Adam':
-            self.optG = torch.optim.Adam(self.netG.parameters(), lr=self.lrG, betas=(self.beta1, self.beta2))
-            self.optD = torch.optim.Adam(self.netD.parameters(), lr=self.lrD, betas=(self.beta1, self.beta2))
-        elif self.which_optimizer == 'RMSProp':
-            self.optG = torch.optim.RMSprop(self.netG.parameters(), lr=self.lrG)
-            self.optD = torch.optim.RMSprop(self.netD.parameters(), lr=self.lrD)
+        # self.beta1 = cf['beta1']
+        # self.beta2 = cf['beta2']
+        #
+        # if self.which_optimizer == 'Adam':
+        #     self.optG = torch.optim.Adam(self.netG.parameters(), lr=self.lrG, betas=(self.beta1, self.beta2))
+        #     self.optD = torch.optim.Adam(self.netD.parameters(), lr=self.lrD, betas=(self.beta1, self.beta2))
+        # elif self.which_optimizer == 'RMSProp':
+        #     self.optG = torch.optim.RMSprop(self.netG.parameters(), lr=self.lrG)
+        #     self.optD = torch.optim.RMSprop(self.netD.parameters(), lr=self.lrD)
 
         # this gives the option to rum the training process multiple times with differently initialised GANs
-        self.num_trials = cf['num trials']
+        # self.num_trials = cf['num trials']
 
         # To keep the criterion Lipschitz
-        self.weight_cliping_limit = cf['weight clipping limit']
+        # self.weight_cliping_limit = cf['weight clipping limit']
 
         # for gradient penalty
-        self.gp_weight = cf['gp weight']
+        # self.gp_weight = cf['gp weight']
 
-        self.batch_size = cf['batch size']
+        # self.batch_size = cf['batch size']
 
         # ============ Testing config ============
         self.num_tests_for2d = cf['num tests for 2d']
@@ -149,7 +154,7 @@ class LevyGAN:
                 np.genfromtxt(f"samples/fixed_samples_2-dim{i + 1}.csv", dtype=float, delimiter=',') for i in
                 range(self.num_tests_for2d)]
 
-    def _gradient_penalty(self, real_data, generated_data):
+    def _gradient_penalty(self, real_data, generated_data, gp_weight):
         b_size_gp = real_data.size()[0]
 
         # Calculate interpolation
@@ -181,7 +186,7 @@ class LevyGAN:
         avg_grad_norm = gradients_norm.mean().item()
 
         # Return gradient penalty
-        return self.gp_weight * ((gradients_norm - 1) ** 2).mean(), avg_grad_norm
+        return gp_weight * ((gradients_norm - 1) ** 2).mean(), avg_grad_norm
 
     def all_2dim_errors(self):
         assert self.w_dim == 2
@@ -214,7 +219,7 @@ class LevyGAN:
         difference = np.abs(self.st_dev_W_fixed - np.sqrt(np.abs(empirical_second_moments(_a_generated))))
         return difference.mean()
 
-    def make_report(self, epoch: int = None, iters: int = None, add_line_break=True):
+    def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
         report = ""
         if add_line_break:
             line_break = "\n"
@@ -223,10 +228,12 @@ class LevyGAN:
         if not (epoch is None or iters is None):
             report = f"epoch: {epoch}/{self.num_epochs}, iter: {iters}, "
 
-        pretty_chen_errors = make_pretty(self.chen_errors())
+        if not (chen_iters is None):
+            report = f"chen_iters: {chen_iters}/{self.num_Chen_iters}"
 
         data = self.unfixed_test_data
         b_size = data.size(0)
+
         noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
         w = data[:, :self.w_dim]
         z = torch.cat((noise, w), dim=1)
@@ -234,15 +241,19 @@ class LevyGAN:
         fake_data = fake_data.detach()
         pruning_indices = torch.randperm(b_size * self.s_dim)[:b_size]
         pruned_fake_data = fake_data[pruning_indices]
+
         gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data)
+
         prob_real = self.netD(data)
+
         prob_fake = self.netD(fake_data)
-        lossD_fake = prob_fake.mean(0).view(1)
-        lossD_real = prob_real.mean(0).view(1)
-        lossD = lossD_fake - self.s_dim * lossD_real
+
+        loss_d_fake = prob_fake.mean(0).view(1)
+        loss_d_real = prob_real.mean(0).view(1)
+        loss_d = loss_d_fake - self.s_dim * loss_d_real
 
         pretty_chen_errors = make_pretty(chen_error_3step(fake_data, self.w_dim))
-        report += f"gradient norm: {gradient_norm:.5f}, discriminator dist: {lossD.item():.5f}"
+        report += f"gradient norm: {gradient_norm:.5f}, discriminator dist: {loss_d.item():.5f}"
 
         # Test Wasserstein error for fixed W
         if self.w_dim > 2:
@@ -298,3 +309,136 @@ class LevyGAN:
 
     def compute_wthmb(self, wth_in: torch.Tensor, b_in: torch.Tensor):
         return aux_compute_wthmb(wth_in, b_in, self.M, self.w_dim)
+
+    def classic_train(self, tr_conf: dict):
+        print("blub")
+        # Number of training epochs using classical training
+        self.num_epochs = tr_conf['num epochs']
+
+        # 'Adam' of 'RMSProp'
+        which_optimizer = tr_conf['optimizer']
+
+        # Learning rate for optimizers
+        lrG = tr_conf['lrG']
+        lrD = tr_conf['lrD']
+
+        # Beta hyperparam for Adam optimizers
+        beta1 = tr_conf['beta1']
+        beta2 = tr_conf['beta2']
+
+        if which_optimizer == 'Adam':
+            opt_g = torch.optim.Adam(self.netG.parameters(), lr=lrG, betas=(beta1, beta2))
+            opt_d = torch.optim.Adam(self.netD.parameters(), lr=lrD, betas=(beta1, beta2))
+        elif which_optimizer == 'RMSProp':
+            opt_g = torch.optim.RMSprop(self.netG.parameters(), lr=lrG)
+            opt_d = torch.optim.RMSprop(self.netD.parameters(), lr=lrD)
+        else:
+            opt_g = torch.optim.RMSprop(self.netG.parameters(), lr=lrG)
+            opt_d = torch.optim.RMSprop(self.netD.parameters(), lr=lrD)
+
+        # To keep the criterion Lipschitz
+        weight_cliping_limit = tr_conf['weight clipping limit']
+
+        # for gradient penalty
+        gp_weight = tr_conf['gp weight']
+
+        batch_size = tr_conf['batch size']
+
+        # create dataloader for samples
+        def row_processer(row):
+            return torch.tensor(np.array(row, dtype=np.float32), dtype=torch.float, device=self.device)
+
+        filename = f"samples/samples_{self.w_dim}-dim.csv"
+        datapipe = dp.iter.FileOpener([filename], mode='t')
+        datapipe = datapipe.parse_csv(delimiter=',')
+        datapipe = datapipe.map(row_processer)
+        dataloader = DataLoader(dataset=datapipe, batch_size=batch_size, num_workers=2)
+
+        # Check if the dimensions match
+        d = next(iter(dataloader))
+        if d.size(1) != self.a_dim + self.w_dim:
+            print("!!!!!!!!!!!!!!!!!!!!!!!!! WRONG DATA DIMENSIONS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
+        iters = 0
+        for epoch in range(self.num_epochs):
+
+            for i, data in enumerate(dataloader):
+                self.netD.zero_grad()
+                self.netG.zero_grad()
+
+                # weight clipping so critic is lipschitz
+                if self.Lipschitz_mode == 'wc':
+                    for p in self.netD.parameters():
+                        p.data.clamp_(-weight_cliping_limit, weight_cliping_limit)
+
+                # check actual batch size (last batch could be shorter)
+                b_size = data.size(0)
+
+                noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
+                w = data[:, :self.w_dim]
+                z = torch.cat((noise, w), dim=1)
+                fake_data = self.netG(z)
+                fake_data = fake_data.detach()
+                pruning_indices = torch.randperm(b_size * self.s_dim)[:b_size]
+                pruned_fake_data = fake_data[pruning_indices]
+
+                gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data)
+
+                prob_real = self.netD(data)
+
+                prob_fake = self.netD(fake_data)
+
+                loss_d_fake = prob_fake.mean(0).view(1)
+                loss_d_real = prob_real.mean(0).view(1)
+                loss_d = loss_d_fake - self.s_dim * loss_d_real
+                if self.Lipschitz_mode == 'gp':
+                    loss_d += gradient_penalty
+                loss_d.backward()
+                opt_d.step()
+
+                # train Generator with probability 1/5
+                if iters % 5 == 0:
+                    self.netG.zero_grad()
+                    noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
+                    w = data[:, :self.w_dim]
+                    z = torch.cat((noise, w), dim=1)
+                    fake_data = self.netG(z)
+                    lossG = self.netD(fake_data)
+                    lossG = - lossG.mean(0).view(1)
+                    lossG.backward()
+                    opt_g.step()
+
+                if iters % 100 == 0:
+                    report = self.make_report(epoch=epoch, iters=iters)
+                    print(report)
+
+    def chen_train(self, tr_conf: dict):
+        print("blub")
+        # Number of iterations of Chen training
+        num_Chen_iters = tr_conf['num Chen iters']
+
+        # 'Adam' of 'RMSProp'
+        which_optimizer = tr_conf['optimizer']
+
+        # Learning rate for optimizers
+        lrG = tr_conf['lrG']
+        lrD = tr_conf['lrD']
+
+        # Beta hyperparam for Adam optimizers
+        beta1 = tr_conf['beta1']
+        beta2 = tr_conf['beta2']
+
+        if which_optimizer == 'Adam':
+            optG = torch.optim.Adam(self.netG.parameters(), lr=lrG, betas=(beta1, beta2))
+            optD = torch.optim.Adam(self.netD.parameters(), lr=lrD, betas=(beta1, beta2))
+        elif which_optimizer == 'RMSProp':
+            optG = torch.optim.RMSprop(self.netG.parameters(), lr=lrG)
+            optD = torch.optim.RMSprop(self.netD.parameters(), lr=lrD)
+
+        # To keep the criterion Lipschitz
+        weight_cliping_limit = tr_conf['weight clipping limit']
+
+        # for gradient penalty
+        gp_weight = tr_conf['gp weight']
+
+        batch_size = tr_conf['batch size']
