@@ -78,7 +78,7 @@ class LevyGAN:
         self.generator_symmetry_mode = cf['generator symmetry mode']
         self.generator_last_width = cf['generator last width']
 
-        # 'gp' for gradient penalty, 'wc' for weight clipping
+        # Which method of keeping the critic Lipshcitz to use. 'gp' for gradient penalty, 'wc' for weight clipping
         self.Lipschitz_mode = cf['Lipschitz mode']
 
         # slope for LeakyReLU
@@ -90,7 +90,9 @@ class LevyGAN:
         self.netG = Generator(cf)
         self.netD = Discriminator(cf)
 
-        self.dict_saves_filename = f'_G{self.which_generator}_D{self.which_discriminator}_{self.Lipschitz_mode}_{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise'
+        self.dict_saves_folder = f'model_G{self.which_generator}_D{self.which_discriminator}_{self.Lipschitz_mode}_{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise'
+
+        self.serial_number = read_serial_number(self.dict_saves_folder)
 
         # ============== Training config ===============
         # Number of training epochs using classical training
@@ -120,8 +122,8 @@ class LevyGAN:
         # this gives the option to rum the training process multiple times with differently initialised GANs
         # self.num_trials = cf['num trials']
 
-        # To keep the criterion Lipschitz
-        # self.weight_cliping_limit = cf['weight clipping limit']
+        # for weight clipping
+        # self.weight_clipping_limit = cf['weight clipping limit']
 
         # for gradient penalty
         # self.gp_weight = cf['gp weight']
@@ -144,7 +146,7 @@ class LevyGAN:
         self.A_fixed_true = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')[:self.test_batch_size,
                             self.w_dim:(self.w_dim + self.a_dim)]
 
-        unfixed_test_data_filename = f"samples/non-fixed_samples_{self.w_dim}-dim.csv"
+        unfixed_test_data_filename = f"samples/non-fixed_test_samples_{self.w_dim}-dim.csv"
         self.unfixed_test_data = np.genfromtxt(unfixed_test_data_filename, dtype=float, delimiter=',')[
                                  :self.test_batch_size]
 
@@ -155,7 +157,7 @@ class LevyGAN:
                 range(self.num_tests_for2d)]
 
     def _gradient_penalty(self, real_data, generated_data, gp_weight):
-        b_size_gp = real_data.size()[0]
+        b_size_gp = real_data.shape[0]
 
         # Calculate interpolation
         alpha = torch.rand(b_size_gp, 1)
@@ -231,8 +233,8 @@ class LevyGAN:
         if not (chen_iters is None):
             report = f"chen_iters: {chen_iters}/{self.num_Chen_iters}"
 
-        data = self.unfixed_test_data
-        b_size = data.size(0)
+        data = torch.tensor(self.unfixed_test_data, dtype=torch.float)
+        b_size = data.shape[0]
 
         noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
         w = data[:, :self.w_dim]
@@ -242,7 +244,7 @@ class LevyGAN:
         pruning_indices = torch.randperm(b_size * self.s_dim)[:b_size]
         pruned_fake_data = fake_data[pruning_indices]
 
-        gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data)
+        gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight= 0)
 
         prob_real = self.netD(data)
 
@@ -252,7 +254,8 @@ class LevyGAN:
         loss_d_real = prob_real.mean(0).view(1)
         loss_d = loss_d_fake - self.s_dim * loss_d_real
 
-        pretty_chen_errors = make_pretty(chen_error_3step(fake_data, self.w_dim))
+        ch_errors = chen_error_3step(fake_data, self.w_dim)
+        pretty_chen_errors = make_pretty(ch_errors)
         report += f"gradient norm: {gradient_norm:.5f}, discriminator dist: {loss_d.item():.5f}"
 
         # Test Wasserstein error for fixed W
@@ -268,41 +271,54 @@ class LevyGAN:
             pretty_chen_errors = make_pretty(self.chen_errors())
             report += f", st_dev error: {st_dev_err: .5f}, joint_wass_dist: {joint_err: .5f}{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors} "
         else:
-            pretty_errors = make_pretty(self.all_2dim_errors())
+            errors = self.all_2dim_errors()
+            pretty_errors = make_pretty(errors)
             report += f"{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors[0]}"
-        return report
+
+        return report, errors, ch_errors
+
+    def draw_error_graphs(self,wass_errors_through_training, chen_errors_through_training):
+        labels = list_pairs(self.w_dim)
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 15))
+        ax1.set_title("Individual 2-Wasserstein errors")
+        ax1.plot(wass_errors_through_training, label=labels)
+        ax1.set_xlabel("iterations")
+        ax1.legend(prop={'size': 15})
+        ax2.set_title("Chen errors")
+        ax2.plot(chen_errors_through_training, label=labels)
+        ax2.set_xlabel("iterations")
+        ax2.legend(prop={'size': 15})
+        fig.show()
+        graph_filename = f"model_saves/{self.dict_saves_folder}/graph_num{self.serial_number}.png"
+        fig.savefig(graph_filename)
 
     def load_dicts(self, descriptor: str = ""):
-        self.netG.load_state_dict(torch.load(f'model_saves/generator' + self.dict_saves_filename + f'_{descriptor}.pt'))
-        self.netD.load_state_dict(torch.load(f'model_saves/discriminator' + self.dict_saves_filename + f'_{descriptor}.pt'))
+        folder_name = f'model_saves/{self.dict_saves_folder}/'
+        self.netG.load_state_dict(torch.load(folder_name + f'generator_{descriptor}.pt'))
+        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_{descriptor}.pt'))
 
     def load_dicts_unstructured(self, gen_filename, discr_filename):
         self.netG.load_state_dict(torch.load(gen_filename))
         self.netD.load_state_dict(torch.load(discr_filename))
 
-    def save_current_dicts(self, descriptor: str = ""):
+    def save_current_dicts(self, report: str, descriptor: str = ""):
         params_g = copy.deepcopy(self.netG.state_dict())
         params_d = copy.deepcopy(self.netD.state_dict())
-        self.save_dicts(params_g, params_d, descriptor)
+        self.save_dicts(params_g, params_d, report, descriptor)
 
-    def save_dicts(self, params_g, params_d, descriptor: str = ""):
-        filename = f'model_saves/summary_of_models' + self.dict_saves_filename + '.txt'
+    def save_dicts(self, params_g, params_d, report: str, descriptor: str = ""):
+        filename = f'model_saves/{self.dict_saves_folder}/summary_file.txt'
 
         with open(filename, 'a+') as summary_file:
-            summary_file.seek(0)
-            lines = summary_file.read().splitlines()
-            if not lines:
-                serial_num = 1
-                summary_file.write(str(serial_num))
-            else:
-                last_line = lines[-1]
-                serial_num = int(last_line)
-
-            summary = f" {descriptor}: " + self.make_report(add_line_break=False) + f"\n{serial_num + 1}"
+            summary = f"{self.serial_number} {descriptor}: {report} \n"
             summary_file.write(summary)
 
-        torch.save(params_g, f'model_saves/generator' + self.dict_saves_filename + f'_{serial_num}_{descriptor}.pt')
-        torch.save(params_d, f'model_saves/discriminator' + self.dict_saves_filename + f'_{serial_num}_{descriptor}.pt')
+        folder_name = f'model_saves/{self.dict_saves_folder}/'
+        torch.save(params_g, folder_name + f'generator_num{self.serial_number}_{descriptor}.pt')
+        torch.save(params_d, folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt')
+
+    def increase_serial(self):
+        self.serial_number += 1
 
     def compute_wth(self, w_in: torch.Tensor, h_in: torch.Tensor):
         return aux_compute_wth(w_in, h_in, self.S, self.T, self.w_dim)
@@ -336,8 +352,11 @@ class LevyGAN:
             opt_g = torch.optim.RMSprop(self.netG.parameters(), lr=lrG)
             opt_d = torch.optim.RMSprop(self.netD.parameters(), lr=lrD)
 
-        # To keep the criterion Lipschitz
-        weight_cliping_limit = tr_conf['weight clipping limit']
+        # Which method of keeping the critic Lipshcitz to use. 'gp' for gradient penalty, 'wc' for weight clipping
+        self.Lipschitz_mode = tr_conf['Lipschitz mode']
+
+        # for weight clipping
+        weight_clipping_limit = tr_conf['weight clipping limit']
 
         # for gradient penalty
         gp_weight = tr_conf['gp weight']
@@ -359,7 +378,16 @@ class LevyGAN:
         if d.size(1) != self.a_dim + self.w_dim:
             print("!!!!!!!!!!!!!!!!!!!!!!!!! WRONG DATA DIMENSIONS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
+        # Early stopping setup
+        min_sum = float('inf')
+        min_chen_err_sum = float('inf')
+
+        # For graphing
+        wass_errors_through_training = []
+        chen_errors_through_training = []
+
         iters = 0
+
         for epoch in range(self.num_epochs):
 
             for i, data in enumerate(dataloader):
@@ -369,10 +397,10 @@ class LevyGAN:
                 # weight clipping so critic is lipschitz
                 if self.Lipschitz_mode == 'wc':
                     for p in self.netD.parameters():
-                        p.data.clamp_(-weight_cliping_limit, weight_cliping_limit)
+                        p.data.clamp_(-weight_clipping_limit, weight_clipping_limit)
 
                 # check actual batch size (last batch could be shorter)
-                b_size = data.size(0)
+                b_size = data.shape[0]
 
                 noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
                 w = data[:, :self.w_dim]
@@ -382,7 +410,7 @@ class LevyGAN:
                 pruning_indices = torch.randperm(b_size * self.s_dim)[:b_size]
                 pruned_fake_data = fake_data[pruning_indices]
 
-                gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data)
+                gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight= gp_weight)
 
                 prob_real = self.netD(data)
 
@@ -409,8 +437,27 @@ class LevyGAN:
                     opt_g.step()
 
                 if iters % 100 == 0:
-                    report = self.make_report(epoch=epoch, iters=iters)
+                    report, errors, chen_errors = self.make_report(epoch=epoch, iters=iters)
                     print(report)
+                    wass_errors_through_training.append(errors)
+                    chen_errors_through_training.append(chen_errors)
+                    # Early stopping checkpoint
+                    error_sum = sum(errors)
+                    if error_sum <= min_sum:
+                        min_sum = error_sum
+                        self.save_current_dicts(report=report, descriptor="min_sum")
+                        print("Saved parameters (fixed error)")
+
+                    chen_err_sum = sum(chen_errors)
+                    if chen_err_sum < min_chen_err_sum:
+                        min_chen_err_sum = chen_err_sum
+                        self.save_current_dicts(report=report, descriptor="min_chen")
+                        print("Saved parameters (chen errors)")
+
+                iters +=1
+
+        self.draw_error_graphs(wass_errors_through_training,chen_errors_through_training)
+
 
     def chen_train(self, tr_conf: dict):
         print("blub")
@@ -436,7 +483,7 @@ class LevyGAN:
             optD = torch.optim.RMSprop(self.netD.parameters(), lr=lrD)
 
         # To keep the criterion Lipschitz
-        weight_cliping_limit = tr_conf['weight clipping limit']
+        weight_clipping_limit = tr_conf['weight clipping limit']
 
         # for gradient penalty
         gp_weight = tr_conf['gp weight']
