@@ -157,17 +157,19 @@ def list_pairs(_w_dim: int):
 def make_pretty(errs):
     return ["{0:0.4f}".format(i) for i in errs]
 
+
 def read_serial_number(dict_saves_folder):
     filename = f'model_saves/{dict_saves_folder}/summary_file.txt'
-    with open(filename, 'r+') as summary_file:
+    with open(filename, 'a+') as summary_file:
         summary_file.seek(0)
         lines = summary_file.read().splitlines()
         if not lines:
             serial_num = 1
         else:
             last_line = lines[-1]
-            serial_num = int(last_line.split()[0])+1
+            serial_num = int(last_line.split()[0]) + 1
     return serial_num
+
 
 def generate_signs(_w_dim: int):
     lst = []

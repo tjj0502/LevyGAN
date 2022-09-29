@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import timeit
 import copy
 from math import sqrt
+from pathlib import Path
 
 from torch.autograd import grad as torch_grad
 
@@ -91,6 +92,7 @@ class LevyGAN:
         self.netD = Discriminator(cf)
 
         self.dict_saves_folder = f'model_G{self.which_generator}_D{self.which_discriminator}_{self.Lipschitz_mode}_{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise'
+        Path(f"model_saves/{self.dict_saves_folder}/").mkdir(parents=True, exist_ok=True)
 
         self.serial_number = read_serial_number(self.dict_saves_folder)
 
@@ -317,15 +319,6 @@ class LevyGAN:
         torch.save(params_g, folder_name + f'generator_num{self.serial_number}_{descriptor}.pt')
         torch.save(params_d, folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt')
 
-    def increase_serial(self):
-        self.serial_number += 1
-
-    def compute_wth(self, w_in: torch.Tensor, h_in: torch.Tensor):
-        return aux_compute_wth(w_in, h_in, self.S, self.T, self.w_dim)
-
-    def compute_wthmb(self, wth_in: torch.Tensor, b_in: torch.Tensor):
-        return aux_compute_wthmb(wth_in, b_in, self.M, self.w_dim)
-
     def classic_train(self, tr_conf: dict):
         print("blub")
         # Number of training epochs using classical training
@@ -387,10 +380,13 @@ class LevyGAN:
         chen_errors_through_training = []
 
         iters = 0
-
+        start_time = timeit.default_timer()
         for epoch in range(self.num_epochs):
 
             for i, data in enumerate(dataloader):
+                elapsed = timeit.default_timer() - start_time
+                print(f"TOP TIME: {elapsed}")
+                start_time = timeit.default_timer()
                 self.netD.zero_grad()
                 self.netG.zero_grad()
 
@@ -401,28 +397,61 @@ class LevyGAN:
 
                 # check actual batch size (last batch could be shorter)
                 b_size = data.shape[0]
+                elapsed = timeit.default_timer() - start_time
+                print(f"bsize TIME: {elapsed}")
+                start_time = timeit.default_timer()
 
                 noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
+                elapsed = timeit.default_timer() - start_time
+                print(f"noise TIME: {elapsed}")
+                start_time = timeit.default_timer()
+
                 w = data[:, :self.w_dim]
                 z = torch.cat((noise, w), dim=1)
+
+                elapsed = timeit.default_timer() - start_time
+                print(f"z TIME: {elapsed}")
+                start_time = timeit.default_timer()
                 fake_data = self.netG(z)
+                elapsed = timeit.default_timer() - start_time
+                print(f"netG TIME: {elapsed}")
+                start_time = timeit.default_timer()
                 fake_data = fake_data.detach()
                 pruning_indices = torch.randperm(b_size * self.s_dim)[:b_size]
                 pruned_fake_data = fake_data[pruning_indices]
 
                 gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight= gp_weight)
+                elapsed = timeit.default_timer() - start_time
+                print(f"GP TIME: {elapsed}")
+                start_time = timeit.default_timer()
 
                 prob_real = self.netD(data)
-
+                elapsed = timeit.default_timer() - start_time
+                print(f"REAL netD TIME: {elapsed}")
+                start_time = timeit.default_timer()
                 prob_fake = self.netD(fake_data)
+                elapsed = timeit.default_timer() - start_time
+                print(f"FAKE netD TIME: {elapsed}")
+                start_time = timeit.default_timer()
 
                 loss_d_fake = prob_fake.mean(0).view(1)
                 loss_d_real = prob_real.mean(0).view(1)
                 loss_d = loss_d_fake - self.s_dim * loss_d_real
+                elapsed = timeit.default_timer() - start_time
+                print(f"lossD TIME: {elapsed}")
+                start_time = timeit.default_timer()
+
                 if self.Lipschitz_mode == 'gp':
                     loss_d += gradient_penalty
                 loss_d.backward()
+                elapsed = timeit.default_timer() - start_time
+                print(f"netD BACKPROP TIME: {elapsed}")
+                start_time = timeit.default_timer()
+
                 opt_d.step()
+                elapsed = timeit.default_timer() - start_time
+                print(f"OPT STEP TIME: {elapsed}")
+                start_time = timeit.default_timer()
 
                 # train Generator with probability 1/5
                 if iters % 5 == 0:
@@ -430,17 +459,36 @@ class LevyGAN:
                     noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
                     w = data[:, :self.w_dim]
                     z = torch.cat((noise, w), dim=1)
+                    elapsed = timeit.default_timer() - start_time
+                    print(f"z2 TIME: {elapsed}")
+                    start_time = timeit.default_timer()
                     fake_data = self.netG(z)
+                    elapsed = timeit.default_timer() - start_time
+                    print(f"netG 2 TIME: {elapsed}")
+                    start_time = timeit.default_timer()
                     lossG = self.netD(fake_data)
+                    elapsed = timeit.default_timer() - start_time
+                    print(f"netD 2 TIME: {elapsed}")
+                    start_time = timeit.default_timer()
                     lossG = - lossG.mean(0).view(1)
                     lossG.backward()
+                    elapsed = timeit.default_timer() - start_time
+                    print(f"netG BACKPROP TIME: {elapsed}")
+                    start_time = timeit.default_timer()
                     opt_g.step()
+                    elapsed = timeit.default_timer() - start_time
+                    print(f"optG TIME: {elapsed}")
+                    start_time = timeit.default_timer()
 
                 if iters % 100 == 0:
                     report, errors, chen_errors = self.make_report(epoch=epoch, iters=iters)
                     print(report)
+                    elapsed = timeit.default_timer() - start_time
+                    print(f"=============REPORT TIME: {elapsed}")
+                    start_time = timeit.default_timer()
                     wass_errors_through_training.append(errors)
                     chen_errors_through_training.append(chen_errors)
+                    report = report.splitlines()[1]
                     # Early stopping checkpoint
                     error_sum = sum(errors)
                     if error_sum <= min_sum:
@@ -454,6 +502,9 @@ class LevyGAN:
                         self.save_current_dicts(report=report, descriptor="min_chen")
                         print("Saved parameters (chen errors)")
 
+                    elapsed = timeit.default_timer() - start_time
+                    print(f"SAVE DICTS TIME: {elapsed}")
+                    start_time = timeit.default_timer()
                 iters +=1
 
         self.draw_error_graphs(wass_errors_through_training,chen_errors_through_training)

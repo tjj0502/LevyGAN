@@ -19,10 +19,21 @@ class Generator(nn.Module):
         self.T, self.M, self.S = generate_tms(self.w_dim)
 
     def compute_wth(self, w_in: torch.Tensor, h_in: torch.Tensor):
-        return aux_compute_wth(w_in, h_in, self.S, self.T, self.w_dim)
+        _bsz = w_in.shape[0]
+        assert w_in.shape == (_bsz, self.w_dim)
+        assert h_in.shape == (_bsz, self.w_dim)
+        _H = torch.mul(self.S, h_in.view(_bsz, 1, self.w_dim))
+        _WT = torch.tensordot(w_in, self.T, dims=1)
+        _WTH = torch.flatten(torch.matmul(_H, _WT).permute(1, 0, 2), start_dim=0, end_dim=1)
+        return _WTH
 
     def compute_wthmb(self, wth_in: torch.Tensor, b_in: torch.Tensor):
-        return aux_compute_wthmb(wth_in, b_in, self.M, self.w_dim)
+        _bsz = b_in.shape[0]
+        assert wth_in.shape == (_bsz * (2 ** self.w_dim), self.a_dim)
+        assert b_in.shape == (_bsz, self.a_dim)
+        _B = b_in.view(1, _bsz, self.a_dim)
+        _MB = torch.flatten(torch.mul(self.M, _B), start_dim=0, end_dim=1)
+        return wth_in + _MB
 
     def forward(self, input):
         noise, w = torch.split(input, [self.noise_size, self.w_dim], dim=1)
