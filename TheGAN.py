@@ -223,7 +223,7 @@ class LevyGAN:
         difference = np.abs(self.st_dev_W_fixed - np.sqrt(np.abs(empirical_second_moments(_a_generated))))
         return difference.mean()
 
-    def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
+    def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True, comp_joint_err = False):
         report = ""
         if add_line_break:
             line_break = "\n"
@@ -269,9 +269,11 @@ class LevyGAN:
                       range(self.a_dim)]
             pretty_errors = make_pretty(errors)
             st_dev_err = self.avg_st_dev_error(a_fixed_gen)
-            joint_err = joint_wass_dist(self.A_fixed_true[:1000], a_fixed_gen[:1000])
+            joint_err = ""
+            if comp_joint_err:
+                joint_err =f", joint_wass_dist: {joint_wass_dist(self.A_fixed_true[:1000], a_fixed_gen[:1000]): .5f}"
             pretty_chen_errors = make_pretty(self.chen_errors())
-            report += f", st_dev error: {st_dev_err: .5f}, joint_wass_dist: {joint_err: .5f}{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors} "
+            report += f", st_dev error: {st_dev_err: .5f}{joint_err}{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors} "
         else:
             errors = self.all_2dim_errors()
             pretty_errors = make_pretty(errors)
