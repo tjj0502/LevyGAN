@@ -161,6 +161,7 @@ def read_serial_number(dict_saves_folder):
         lines = summary_file.read().splitlines()
         if not lines:
             serial_num = 1
+            summary_file.write(f"0 SUMMARY FILE FOR: {dict_saves_folder}\n")
         else:
             last_line = lines[-1]
             serial_num = int(last_line.split()[0]) + 1

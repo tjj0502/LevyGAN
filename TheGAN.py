@@ -173,11 +173,12 @@ class LevyGAN:
         for i in range(self.num_tests_for2d):
             # Test Wasserstein error for fixed W
             data_fixed_true = self.fixed_data_for_2d[i]
+            data_fixed_true = data_fixed_true[:self.test_bsz]
             a_fixed_true = data_fixed_true[:, 2]
             w_combo = torch.tensor(data_fixed_true[:, :2], dtype=torch.float, device=self.device)
             noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
             g_in = torch.cat((noise, w_combo), 1)
-            a_fixed_gen = self.netG(g_in)[:, 3].detach().cpu().numpy().squeeze()
+            a_fixed_gen = self.netG(g_in)[:, 2].detach().cpu().numpy().squeeze()
             errs.append(sqrt(ot.wasserstein_1d(a_fixed_true, a_fixed_gen, p=2)))
         return errs
 
@@ -291,7 +292,7 @@ class LevyGAN:
         ax2.set_xlabel("iterations")
         ax2.legend(prop={'size': 15})
         fig.show()
-        graph_filename = f"model_saves/{self.dict_saves_folder}/graph_num{self.serial_number}_{descriptor}.png"
+        graph_filename = f"model_saves/{self.dict_saves_folder}/graph_{self.dict_saves_folder}_num{self.serial_number}_{descriptor}.png"
         fig.savefig(graph_filename)
 
     def load_dicts(self, serial_num_to_load: int = -1, descriptor: str = ""):
