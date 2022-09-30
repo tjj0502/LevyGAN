@@ -55,7 +55,7 @@ def generator_main(cf: dict):
 
             nn.Linear(128,generator_last_width)
         ).to(device=device)
-    if which_gen == 2:
+    if which_gen == 4:
         layers = nn.Sequential(
             nn.Linear(w_dim + noise_size, 256),
             nn.BatchNorm1d(256),
