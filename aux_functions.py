@@ -173,9 +173,9 @@ def generate_signs(_w_dim: int):
     return res
 
 
-def generate_tms(_w_dim: int):
+def generate_tms(_w_dim: int, device: torch.DeviceObjType):
     _a_dim = int((_w_dim * (_w_dim - 1)) // 2)
-    signs = torch.tensor(generate_signs(_w_dim), dtype=torch.float).view(1, 2 ** _w_dim, _w_dim).contiguous()
+    signs = torch.tensor(generate_signs(_w_dim), dtype=torch.float, device=device).view(1, 2**_w_dim, _w_dim).contiguous()
     m_list = []
 
     for s in range(signs.shape[1]):
@@ -185,7 +185,7 @@ def generate_tms(_w_dim: int):
                 m_row.append(signs[0, s, j].item() * signs[0, s, i].item())
         m_list.append(m_row)
 
-    _M = torch.tensor(m_list).unsqueeze(1).contiguous().detach()
+    _M = torch.tensor(m_list, dtype=torch.float, device=device).unsqueeze(1).contiguous().detach()
     first_dim = []
     second_dim = []
     third_dim = []
@@ -205,7 +205,7 @@ def generate_tms(_w_dim: int):
 
     indices = torch.tensor([first_dim, second_dim, third_dim])
     _T = torch.sparse_coo_tensor(indices=indices, values=values, size=(_w_dim, _w_dim, _a_dim),
-                                 dtype=torch.float).to_dense().contiguous().detach()
+                                 dtype=torch.float, device=device).to_dense().contiguous().detach()
     return _T, _M, signs
 
 
