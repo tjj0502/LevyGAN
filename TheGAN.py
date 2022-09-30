@@ -24,7 +24,11 @@ training_config = configs.training_config
 
 class LevyGAN:
 
-    def __init__(self, cf: dict):
+    def __init__(self, config_in: dict = None):
+        if config_in is None:
+            cf = configs.config
+        else:
+            cf = config_in
         init_config(cf)
 
         # ============ Model config ===============
@@ -323,7 +327,12 @@ class LevyGAN:
             elapsed = timeit.default_timer() - self.start_time
             print(f"{description} TIME: {elapsed}")
             self.start_time = timeit.default_timer()
-    def classic_train(self, tr_conf: dict):
+    def classic_train(self, tr_conf_in: dict = None):
+        if tr_conf_in is None:
+            tr_conf = configs.training_config
+        else:
+            tr_conf = tr_conf_in
+
         # Number of training epochs using classical training
         self.num_epochs = tr_conf['num epochs']
 
