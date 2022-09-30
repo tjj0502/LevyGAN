@@ -7,6 +7,8 @@ from Generator import Generator
 from Discriminator import Discriminator
 import configs
 
+from torch.autograd import grad as torch_grad
+
 config = configs.config
 
 training_config = configs.training_config
@@ -16,6 +18,7 @@ class LevyGAN:
 
     def __init__(self, config_in: dict = None, serial_num_in: int = -1):
         if config_in is None:
+            import configs
             cf = configs.config
         else:
             cf = config_in
@@ -49,7 +52,7 @@ class LevyGAN:
         self.netD = Discriminator(cf)
 
         self.dict_saves_folder = f'model_G{self.which_generator}_D{self.which_discriminator}_{self.Lipschitz_mode}_' + \
-                                 f'{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise '
+                                 f'{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise'
         Path(f"model_saves/{self.dict_saves_folder}/").mkdir(parents=True, exist_ok=True)
 
         if serial_num_in < 0:
@@ -343,6 +346,7 @@ class LevyGAN:
 
     def classic_train(self, tr_conf_in: dict = None):
         if tr_conf_in is None:
+            import configs
             tr_conf = configs.training_config
         else:
             tr_conf = tr_conf_in
