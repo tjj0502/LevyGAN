@@ -136,6 +136,46 @@ class LevyGAN:
         self.do_timeing = cf['do timeing']
         self.start_time = timeit.default_timer()
 
+    def reload_testing_config(self, cf: dict):
+        self.num_tests_for2d = cf['num tests for 2d']
+
+        self.test_bsz = cf['test batch size']
+        self.unfixed_test_bsz = cf['unfixed test batch size']
+        self.joint_wass_dist_bsz = cf['joint wass dist batch size']
+
+        self.W_fixed_whole = cf['W fixed whole']
+        self.W_fixed = torch.tensor(self.W_fixed_whole, device=self.device)[:self.w_dim].unsqueeze(1).transpose(1, 0)
+        self.W_fixed = self.W_fixed.expand((self.test_bsz, self.w_dim))
+
+        self.st_dev_W_fixed = np.diag(true_st_devs(self.W_fixed_whole[:self.w_dim]))
+
+        # Load "true" samples generated from this fixed W increment
+        fixed_test_data_filename = f"samples/fixed_samples_{self.w_dim}-dim.csv"
+        self.A_fixed_true = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')
+        self.A_fixed_true = self.A_fixed_true[:self.test_bsz, self.w_dim:(self.w_dim + self.a_dim)]
+
+        unfixed_test_data_filename = f"samples/non-fixed_test_samples_{self.w_dim}-dim.csv"
+        self.unfixed_test_data = np.genfromtxt(unfixed_test_data_filename, dtype=float, delimiter=',')[
+                                 :self.unfixed_test_bsz]
+
+        self.fixed_data_for_2d = []
+        if self.w_dim == 2:
+            self.fixed_data_for_2d = [
+                np.genfromtxt(f"samples/fixed_samples_2-dim{i + 1}.csv", dtype=float, delimiter=',') for i in
+                range(self.num_tests_for2d)]
+
+        self.test_results = {
+            'errors': [],
+            'chen errors': [],
+            'joint wass error': -1.0,
+            'st dev error': -1.0,
+            'loss d': 0.0,
+            'gradient norm': 0.0
+        }
+
+        self.do_timeing = cf['do timeing']
+        self.start_time = timeit.default_timer()
+
     def _gradient_penalty(self, real_data, generated_data, gp_weight):
         b_size_gp = real_data.shape[0]
         # Calculate interpolation
@@ -285,10 +325,12 @@ class LevyGAN:
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 15))
         ax1.set_title("Individual 2-Wasserstein errors")
         ax1.plot(wass_errors_through_training, label=labels)
+        ax1.set_ylim([-0.005, 0.2])
         ax1.set_xlabel("iterations")
         ax1.legend(prop={'size': 15})
         ax2.set_title("Chen errors")
         ax2.plot(chen_errors_through_training, label=labels)
+        ax2.set_ylim([-0.01, 0.8])
         ax2.set_xlabel("iterations")
         ax2.legend(prop={'size': 15})
         fig.show()
@@ -301,12 +343,12 @@ class LevyGAN:
         else:
             sn = serial_num_to_load
         folder_name = f'model_saves/{self.dict_saves_folder}/'
-        self.netG.load_state_dict(torch.load(folder_name + f'generator_num{self.serial_number}_{descriptor}.pt'))
-        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt'))
+        self.netG.load_state_dict(torch.load(folder_name + f'generator_num{self.serial_number}_{descriptor}.pt', map_location=self.device))
+        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt', map_location=self.device))
 
     def load_dicts_unstructured(self, gen_filename, discr_filename):
-        self.netG.load_state_dict(torch.load(gen_filename))
-        self.netD.load_state_dict(torch.load(discr_filename))
+        self.netG.load_state_dict(torch.load(gen_filename, map_location=self.device))
+        self.netD.load_state_dict(torch.load(discr_filename, map_location=self.device))
 
     def save_current_dicts(self, report: str, descriptor: str = ""):
         params_g = copy.deepcopy(self.netG.state_dict())
