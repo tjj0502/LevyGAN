@@ -15,50 +15,11 @@ from torch.autograd import grad as torch_grad
 from aux_functions import *
 from Generator import Generator
 from Discriminator import Discriminator
+import configs
 
-config = {
-    'device': torch.device('cpu'),
-    'ngpu': 0,
-    'w dim': 4,
-    'a dim': 6,
-    'noise size': 62,
-    'which generator': 1,
-    'which discriminator': 1,
-    'generator symmetry mode': 'Hsym',
-    'generator last width': 6,
-    's dim': 16,
-    'leakyReLU slope': 0.2,
-    'num epochs': 20,
-    'num Chen iters': 5000,
-    'optimizer': 'Adam',
-    'lrG': 0.0001,
-    'lrD': 0.0005,
-    'beta1': 0,
-    'beta2': 0.99,
-    'Lipschitz mode': 'gp',
-    'weight clipping limit': 0.01,
-    'gp weight': 10.0,
-    'batch size': 1024,
-    'test batch size': 16384,
-    'unfixed test batch size': 4096,
-    'num tests for 2d': 8,
-    'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
-    'do timeing': False
-}
+config = configs.config
 
-training_config = {
-    'num epochs': 2,
-    'num Chen iters': 5000,
-    'optimizer': 'Adam',
-    'lrG': 0.0001,
-    'lrD': 0.0005,
-    'beta1': 0,
-    'beta2': 0.99,
-    'Lipschitz mode': 'gradient penalty',
-    'weight clipping limit': 0.01,
-    'gp weight': 10.0,
-    'batch size': 1024,
-}
+training_config = configs.training_config
 
 
 class LevyGAN:
@@ -132,34 +93,44 @@ class LevyGAN:
         # for gradient penalty
         # self.gp_weight = cf['gp weight']
 
-        # self.batch_size = cf['batch size']
+        # self.bsz = cf['batch size']
 
         # ============ Testing config ============
         self.num_tests_for2d = cf['num tests for 2d']
 
-        self.test_batch_size = cf['test batch size']
-        self.unfixed_test_batch_size = cf['unfixed test batch size']
+        self.test_bsz = cf['test batch size']
+        self.unfixed_test_bsz = cf['unfixed test batch size']
+        self.joint_wass_dist_bsz = cf['joint wass dist batch size']
 
         self.W_fixed_whole = cf['W fixed whole']
         self.W_fixed = torch.tensor(self.W_fixed_whole)[:self.w_dim].unsqueeze(1).transpose(1, 0)
-        self.W_fixed = self.W_fixed.expand((self.test_batch_size, self.w_dim))
+        self.W_fixed = self.W_fixed.expand((self.test_bsz, self.w_dim))
 
         self.st_dev_W_fixed = np.diag(true_st_devs(self.W_fixed_whole[:self.w_dim]))
 
         # Load "true" samples generated from this fixed W increment
         fixed_test_data_filename = f"samples/fixed_samples_{self.w_dim}-dim.csv"
-        self.A_fixed_true = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')[:self.test_batch_size,
+        self.A_fixed_true = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')[:self.test_bsz,
                             self.w_dim:(self.w_dim + self.a_dim)]
 
         unfixed_test_data_filename = f"samples/non-fixed_test_samples_{self.w_dim}-dim.csv"
         self.unfixed_test_data = np.genfromtxt(unfixed_test_data_filename, dtype=float, delimiter=',')[
-                                 :self.unfixed_test_batch_size]
+                                 :self.unfixed_test_bsz]
 
         self.fixed_data_for_2d = []
         if self.w_dim == 2:
             self.fixed_data_for_2d = [
                 np.genfromtxt(f"samples/fixed_samples_2-dim{i + 1}.csv", dtype=float, delimiter=',') for i in
                 range(self.num_tests_for2d)]
+
+        self.test_results = {
+            'errors': [],
+            'chen errors': [],
+            'joint wass error': -1.0,
+            'st dev error': -1.0,
+            'loss d': 0.0,
+            'gradient norm': 0.0
+        }
 
         self.do_timeing = cf['do timeing']
         self.start_time = timeit.default_timer()
@@ -205,21 +176,21 @@ class LevyGAN:
             data_fixed_true = self.fixed_data_for_2d[i]
             a_fixed_true = data_fixed_true[:, 2]
             w_combo = torch.tensor(data_fixed_true[:, :2], dtype=torch.float)
-            noise = torch.randn((self.test_batch_size, self.noise_size), dtype=torch.float, device=self.device)
+            noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
             g_in = torch.cat((noise, w_combo), 1)
             a_fixed_gen = self.netG(g_in)[:, 3].detach().numpy().squeeze()
             errs.append(sqrt(ot.wasserstein_1d(a_fixed_true, a_fixed_gen, p=2)))
         return errs
 
     # def multi_dim_wasserstein_errors(self):
-    #     noise = torch.randn((self.test_batch_size, self.noise_size), dtype=torch.float, device=self.device)
+    #     noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
     #     g_in = torch.cat((noise, self.W_fixed), 1)
     #     A_fixed_gen = self.netG(g_in)[:, self.w_dim:self.w_dim + self.a_dim].detach().numpy()
     #     errors = [sqrt(ot.wasserstein_1d(self.A_fixed_true[:, i], A_fixed_gen[:, i], p=2)) for i in range(self.a_dim)]
 
     def chen_errors(self):
-        W = torch.randn((self.test_batch_size, self.w_dim), dtype=torch.float, device=self.device)
-        noise = torch.randn((self.test_batch_size, self.noise_size), dtype=torch.float, device=self.device)
+        W = torch.randn((self.test_bsz, self.w_dim), dtype=torch.float, device=self.device)
+        noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
         gen_in = torch.cat((noise, W), 1)
         generated_data = self.netG(gen_in).detach()
         return chen_error_3step(generated_data, self.w_dim)
@@ -228,33 +199,21 @@ class LevyGAN:
         difference = np.abs(self.st_dev_W_fixed - np.sqrt(np.abs(empirical_second_moments(_a_generated))))
         return difference.mean()
 
-    def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True, comp_joint_err = False):
-        report = ""
-        if add_line_break:
-            line_break = "\n"
-        else:
-            line_break = " "
-        if not (epoch is None or iters is None):
-            report = f"epoch: {epoch}/{self.num_epochs}, iter: {iters}, "
+    def do_tests(self, comp_joint_err = False):
+        data = torch.tensor(self.unfixed_test_data, dtype=torch.float, device=self.device)
+        actual_bsz = data.shape[0]
 
-        if not (chen_iters is None):
-            report = f"chen_iters: {chen_iters}/{self.num_Chen_iters}"
-
-        data = torch.tensor(self.unfixed_test_data, dtype=torch.float, device = self.device)
-        b_size = data.shape[0]
-
-        noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
+        noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
         w = data[:, :self.w_dim]
         z = torch.cat((noise, w), dim=1)
         fake_data = self.netG(z)
         fake_data = fake_data.detach()
-        pruning_indices = torch.randperm(b_size * self.s_dim)[:b_size]
+        pruning_indices = torch.randperm(actual_bsz * self.s_dim)[:actual_bsz]
         pruned_fake_data = fake_data[pruning_indices]
 
-        gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight= 0)
+        gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight=0)
 
         prob_real = self.netD(data)
-
         prob_fake = self.netD(fake_data)
 
         loss_d_fake = prob_fake.mean(0).view(1)
@@ -262,35 +221,62 @@ class LevyGAN:
         loss_d = loss_d_fake - self.s_dim * loss_d_real
         self.print_time("UNFIXED PART OF REPORT")
 
-        ch_errors = chen_error_3step(fake_data, self.w_dim)
-        pretty_chen_errors = make_pretty(ch_errors)
-        report += f"gradient norm: {gradient_norm:.5f}, discriminator dist: {loss_d.item():.5f}"
+        chen_errors = chen_error_3step(fake_data, self.w_dim)
         self.print_time("CHEN ERRORS")
-
+        joint_wass_error = -1.0
+        st_dev_err = -1.0
         # Test Wasserstein error for fixed W
         if self.w_dim > 2:
-            noise = torch.randn((self.test_batch_size, self.noise_size), dtype=torch.float, device=self.device)
+            noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
             g_in = torch.cat((noise, self.W_fixed), 1)
             a_fixed_gen = self.netG(g_in)[:, self.w_dim:self.w_dim + self.a_dim].detach().numpy()
             errors = [sqrt(ot.wasserstein_1d(self.A_fixed_true[:, i], a_fixed_gen[:, i], p=2)) for i in
                       range(self.a_dim)]
             self.print_time("FIXED ERRORS")
-
-            pretty_errors = make_pretty(errors)
             st_dev_err = self.avg_st_dev_error(a_fixed_gen)
             self.print_time("ST DEV ERRORS")
-            joint_err = ""
+
             if comp_joint_err:
-                joint_err =f", joint_wass_dist: {joint_wass_dist(self.A_fixed_true[:1000], a_fixed_gen[:1000]): .5f}"
+                joint_wass_error = joint_wass_dist(self.A_fixed_true[:self.joint_wass_dist_bsz], a_fixed_gen[:self.joint_wass_dist_bsz])
             self.print_time("JOINT WASS ERRORS")
 
-            report += f", st_dev error: {st_dev_err: .5f}{joint_err}{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors} "
         else:
             errors = self.all_2dim_errors()
-            pretty_errors = make_pretty(errors)
-            report += f"{line_break}errs: {pretty_errors}, ch_err: {pretty_chen_errors[0]}"
 
-        return report, errors, ch_errors
+        self.test_results['errors'] = errors
+        self.test_results['chen errors'] = chen_errors
+        self.test_results['joint wass error'] = joint_wass_error
+        self.test_results['st dev error'] = st_dev_err
+        self.test_results['loss d'] = loss_d.item()
+        self.test_results['gradient norm'] = gradient_norm
+
+    def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
+        report = ""
+        if add_line_break:
+            line_break = "\n"
+        else:
+            line_break = ", "
+        if not (epoch is None):
+            report += f"ep: {epoch}/{self.num_epochs}, "
+        if not (iters is None):
+            report += f"itr: {iters}, "
+        if not (chen_iters is None):
+            report += f"chen_iters: {chen_iters}/{self.num_Chen_iters}, "
+
+        report += f"discr grad norm: {self.test_results['gradient norm']: .5f}, discr loss: {self.test_results['loss d']: .5f}"
+        joint_wass_error = self.test_results['joint wass error']
+        if joint_wass_error >= 0:
+            report += f", joint err: {joint_wass_error: .5f}"
+        st_dev_error = self.test_results['st dev error']
+        if st_dev_error >= 0:
+            report += f", st dev err: {st_dev_error: .5f}"
+        pretty_errors = make_pretty(self.test_results['errors'])
+        pretty_chen_errors = make_pretty(self.test_results['chen errors'])
+        if len(pretty_chen_errors) == 1:
+            pretty_chen_errors = pretty_chen_errors[0]
+        report += f"{line_break}errs: {pretty_errors}, chen errs: {pretty_chen_errors}"
+
+        return report
 
     def draw_error_graphs(self,wass_errors_through_training, chen_errors_through_training):
         labels = list_pairs(self.w_dim)
@@ -371,7 +357,7 @@ class LevyGAN:
         # for gradient penalty
         gp_weight = tr_conf['gp weight']
 
-        batch_size = tr_conf['batch size']
+        bsz = tr_conf['batch size']
 
         # create dataloader for samples
         def row_processer(row):
@@ -381,7 +367,7 @@ class LevyGAN:
         datapipe = dp.iter.FileOpener([filename], mode='t')
         datapipe = datapipe.parse_csv(delimiter=',')
         datapipe = datapipe.map(row_processer)
-        dataloader = DataLoader(dataset=datapipe, batch_size=batch_size, num_workers=2)
+        dataloader = DataLoader(dataset=datapipe, batch_size=bsz, num_workers=2)
 
         # Check if the dimensions match
         d = next(iter(dataloader))
@@ -410,26 +396,24 @@ class LevyGAN:
                         p.data.clamp_(-weight_clipping_limit, weight_clipping_limit)
 
                 # check actual batch size (last batch could be shorter)
-                b_size = data.shape[0]
+                actual_bsz = data.shape[0]
 
-                noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
-
-
+                noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
                 w = data[:, :self.w_dim]
                 z = torch.cat((noise, w), dim=1)
-
-
+                self.print_time(description="MAKE Z 1")
                 fake_data = self.netG(z)
-
+                self.print_time(description="netG 1")
                 fake_data = fake_data.detach()
-                pruning_indices = torch.randperm(b_size * self.s_dim)[:b_size]
+                pruning_indices = torch.randperm(actual_bsz * self.s_dim)[:actual_bsz]
                 pruned_fake_data = fake_data[pruning_indices]
 
                 gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight= gp_weight)
-
+                self.print_time(description="GRAD PENALTY")
 
                 prob_real = self.netD(data)
                 prob_fake = self.netD(fake_data)
+                self.print_time(description="netD 1 twice")
 
                 loss_d_fake = prob_fake.mean(0).view(1)
                 loss_d_real = prob_real.mean(0).view(1)
@@ -437,43 +421,57 @@ class LevyGAN:
 
                 if self.Lipschitz_mode == 'gp':
                     loss_d += gradient_penalty
+
+                self.print_time(description="BEFORE BACKPROP")
                 loss_d.backward()
+                self.print_time(description="netD BACKPROP")
                 opt_d.step()
+                self.print_time(description="OPT D")
 
                 # train Generator with probability 1/5
                 if iters % 5 == 0:
                     self.netG.zero_grad()
-                    noise = torch.randn((b_size, self.noise_size), dtype=torch.float, device=self.device)
+                    noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
                     w = data[:, :self.w_dim]
                     z = torch.cat((noise, w), dim=1)
+                    self.print_time(description="MAKE Z 2")
                     fake_data = self.netG(z)
+                    self.print_time(description="netG 2")
                     lossG = self.netD(fake_data)
+                    self.print_time(description="netD 2")
                     lossG = - lossG.mean(0).view(1)
                     lossG.backward()
+                    self.print_time(description="netG BACKPROP")
                     opt_g.step()
+                    self.print_time(description="OPT G")
 
                 if iters % 100 == 0:
-                    self.print_time(description="BEFORE REPORT")
-                    report, errors, chen_errors = self.make_report(epoch=epoch, iters=iters, comp_joint_err=True)
+                    self.print_time(description="BEFORE TESTS")
+                    self.do_tests(comp_joint_err=True)
+                    self.print_time(description="AFTER TESTS")
+                    report = self.make_report(epoch=epoch, iters=iters)
                     print(report)
-                    self.print_time(description="==== REPORT")
+                    self.print_time(description="AFTER REPORT")
+                    errors = self.test_results['errors']
                     wass_errors_through_training.append(errors)
+                    chen_errors = self.test_results['chen errors']
                     chen_errors_through_training.append(chen_errors)
-                    report = report.splitlines()[1]
+                    report_for_saving_dicts = self.make_report(add_line_break=False)
                     # Early stopping checkpoint
                     error_sum = sum(errors)
                     if error_sum <= min_sum:
                         min_sum = error_sum
-                        self.save_current_dicts(report=report, descriptor="min_sum")
+                        self.save_current_dicts(report=report_for_saving_dicts, descriptor="min_sum")
                         print("Saved parameters (fixed error)")
 
                     chen_err_sum = sum(chen_errors)
                     if chen_err_sum < min_chen_err_sum:
                         min_chen_err_sum = chen_err_sum
-                        self.save_current_dicts(report=report, descriptor="min_chen")
+                        self.save_current_dicts(report=report_for_saving_dicts, descriptor="min_chen")
                         print("Saved parameters (chen errors)")
 
                     self.print_time(description="SAVING DICTS")
+                    self.do_timeing = False
                 iters +=1
 
         self.draw_error_graphs(wass_errors_through_training,chen_errors_through_training)
@@ -508,4 +506,4 @@ class LevyGAN:
         # for gradient penalty
         gp_weight = tr_conf['gp weight']
 
-        batch_size = tr_conf['batch size']
+        bsz = tr_conf['batch size']
