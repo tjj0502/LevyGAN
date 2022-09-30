@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 from math import sqrt
 
-from aux_functions import generate_tms, aux_compute_wth, aux_compute_wthmb
+from aux_functions import generate_tms
 from models import generator_main
 
 

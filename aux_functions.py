@@ -3,8 +3,6 @@ import numpy as np
 import ot
 from math import sqrt
 
-from torch.autograd import grad as torch_grad
-
 config = {
     'device': torch.device('cpu'),
     'ngpu': 0,

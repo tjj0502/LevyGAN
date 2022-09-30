@@ -1,17 +1,5 @@
-import torchdata.datapipes as dp
-from torch.utils.data import DataLoader
 import torch.nn as nn
-import torch
-import numpy as np
-import ot
-import matplotlib.pyplot as plt
-import timeit
-import copy
-from math import sqrt
 
-from torch.autograd import grad as torch_grad
-
-from aux_functions import *
 
 def generator_main(cf: dict):
     which_gen = cf['which generator']
