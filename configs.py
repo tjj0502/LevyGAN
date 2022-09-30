@@ -25,10 +25,10 @@ config = {
     'batch size': 1024,
     'test batch size': 16384,
     'unfixed test batch size': 4096,
-    'joint wass dist batch size': 4096,
+    'joint wass dist batch size': 1024,
     'num tests for 2d': 8,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
-    'do timeing': True
+    'do timeing': False
 }
 
 training_config = {
@@ -43,5 +43,6 @@ training_config = {
     'weight clipping limit': 0.01,
     'gp weight': 10.0,
     'batch size': 1024,
+    'compute joint error': True
 }
 

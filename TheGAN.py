@@ -1,5 +1,7 @@
 from pathlib import Path
-
+import timeit
+import copy
+import matplotlib.pyplot as plt
 from aux_functions import *
 from Generator import Generator
 from Discriminator import Discriminator
@@ -12,7 +14,7 @@ training_config = configs.training_config
 
 class LevyGAN:
 
-    def __init__(self, config_in: dict = None):
+    def __init__(self, config_in: dict = None, serial_num_in: int = -1):
         if config_in is None:
             cf = configs.config
         else:
@@ -50,7 +52,10 @@ class LevyGAN:
                                  f'{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise '
         Path(f"model_saves/{self.dict_saves_folder}/").mkdir(parents=True, exist_ok=True)
 
-        self.serial_number = read_serial_number(self.dict_saves_folder)
+        if serial_num_in < 0:
+            self.serial_number = read_serial_number(self.dict_saves_folder)
+        else:
+            self.serial_number = serial_num_in
 
         # ============== Training config ===============
         # Number of training epochs using classical training
@@ -305,10 +310,26 @@ class LevyGAN:
 
     def save_dicts(self, params_g, params_d, report: str, descriptor: str = ""):
         filename = f'model_saves/{self.dict_saves_folder}/summary_file.txt'
+        line_header = f"{self.serial_number} {descriptor}"
+        summary = f"{line_header}: {report} \n"
 
-        with open(filename, 'a+') as summary_file:
-            summary = f"{self.serial_number} {descriptor}: {report} \n"
-            summary_file.write(summary)
+        with open(filename, 'r+') as summary_file:
+            lines = summary_file.readlines()
+            summary_file.seek(0)
+
+            flag = False
+            for i in range(len(lines)):
+                line_header_from_file = lines[i].split(':')[0]
+                if line_header == line_header_from_file:
+                    lines[i] = summary
+                    flag = True
+                    break
+
+            if not flag:
+                lines.append(summary)
+
+            summary_file.writelines(lines)
+            summary_file.truncate()
 
         folder_name = f'model_saves/{self.dict_saves_folder}/'
         torch.save(params_g, folder_name + f'generator_num{self.serial_number}_{descriptor}.pt')
@@ -360,6 +381,8 @@ class LevyGAN:
         gp_weight = tr_conf['gp weight']
 
         bsz = tr_conf['batch size']
+
+        compute_joint_error = tr_conf['compute joint error']
 
         filename = f"samples/samples_{self.w_dim}-dim.csv"
         whole_training_data = np.genfromtxt(filename, dtype=np.float32, delimiter=',')
@@ -438,7 +461,7 @@ class LevyGAN:
 
                 if iters % 100 == 0:
                     self.print_time(description="BEFORE TESTS")
-                    self.do_tests(comp_joint_err=True)
+                    self.do_tests(comp_joint_err=compute_joint_error)
                     self.print_time(description="AFTER TESTS")
                     report = self.make_report(epoch=epoch, iters=iters)
                     print(report)
