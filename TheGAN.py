@@ -139,7 +139,7 @@ class LevyGAN:
     def _gradient_penalty(self, real_data, generated_data, gp_weight):
         b_size_gp = real_data.shape[0]
         # Calculate interpolation
-        alpha = torch.rand(b_size_gp, 1, device = self.device)
+        alpha = torch.rand(b_size_gp, 1, device=self.device)
         alpha = alpha.expand_as(real_data)
         interpolated = (alpha * real_data + (1 - alpha) * generated_data).requires_grad_(True)
 
@@ -294,7 +294,7 @@ class LevyGAN:
         graph_filename = f"model_saves/{self.dict_saves_folder}/graph_num{self.serial_number}_{descriptor}.png"
         fig.savefig(graph_filename)
 
-    def load_dicts(self,serial_num_to_load: int = -1, descriptor: str = ""):
+    def load_dicts(self, serial_num_to_load: int = -1, descriptor: str = ""):
         if serial_num_to_load < 0:
             sn = self.serial_number
         else:
@@ -395,7 +395,6 @@ class LevyGAN:
         # whole_training_data = self.unfixed_test_data
         whole_training_data = np.genfromtxt(filename, dtype=np.float32, delimiter=',')
         whole_training_data = torch.tensor(whole_training_data, dtype=torch.float, device=self.device).split(bsz)
-
 
         # Early stopping setup
         min_sum = float('inf')
