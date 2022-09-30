@@ -45,7 +45,7 @@ class LevyGAN:
         # slope for LeakyReLU
         self.leakyReLU_slope = cf['leakyReLU slope']
 
-        self.T, self.M, self.S = generate_tms(self.w_dim)
+        self.T, self.M, self.S = generate_tms(self.w_dim, self.device)
 
         # create the nets
         self.netG = Generator(cf)
@@ -104,7 +104,7 @@ class LevyGAN:
         self.joint_wass_dist_bsz = cf['joint wass dist batch size']
 
         self.W_fixed_whole = cf['W fixed whole']
-        self.W_fixed = torch.tensor(self.W_fixed_whole)[:self.w_dim].unsqueeze(1).transpose(1, 0)
+        self.W_fixed = torch.tensor(self.W_fixed_whole, device=self.device)[:self.w_dim].unsqueeze(1).transpose(1, 0)
         self.W_fixed = self.W_fixed.expand((self.test_bsz, self.w_dim))
 
         self.st_dev_W_fixed = np.diag(true_st_devs(self.W_fixed_whole[:self.w_dim]))
@@ -138,11 +138,10 @@ class LevyGAN:
 
     def _gradient_penalty(self, real_data, generated_data, gp_weight):
         b_size_gp = real_data.shape[0]
-
         # Calculate interpolation
-        alpha = torch.rand(b_size_gp, 1)
+        alpha = torch.rand(b_size_gp, 1, device = self.device)
         alpha = alpha.expand_as(real_data)
-        interpolated = (alpha * real_data.data + (1 - alpha) * generated_data.data).requires_grad_(True)
+        interpolated = (alpha * real_data + (1 - alpha) * generated_data).requires_grad_(True)
 
         if self.ngpu > 0:
             interpolated = interpolated.cuda()
@@ -152,9 +151,7 @@ class LevyGAN:
 
         # Calculate gradients of probabilities with respect to examples
         gradients = torch_grad(outputs=prob_interpolated, inputs=interpolated,
-                               grad_outputs=torch.ones(
-                                   prob_interpolated.size()).cuda() if self.ngpu > 0 else torch.ones(
-                                   prob_interpolated.size(), device=self.device),
+                               grad_outputs=torch.ones(prob_interpolated.size(), device=self.device),
                                create_graph=True, retain_graph=True)[0]
 
         # Gradients have shape (b_size, num_channels, img_width, img_height),
@@ -177,10 +174,10 @@ class LevyGAN:
             # Test Wasserstein error for fixed W
             data_fixed_true = self.fixed_data_for_2d[i]
             a_fixed_true = data_fixed_true[:, 2]
-            w_combo = torch.tensor(data_fixed_true[:, :2], dtype=torch.float)
+            w_combo = torch.tensor(data_fixed_true[:, :2], dtype=torch.float, device=self.device)
             noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
             g_in = torch.cat((noise, w_combo), 1)
-            a_fixed_gen = self.netG(g_in)[:, 3].detach().numpy().squeeze()
+            a_fixed_gen = self.netG(g_in)[:, 3].detach().cpu().numpy().squeeze()
             errs.append(sqrt(ot.wasserstein_1d(a_fixed_true, a_fixed_gen, p=2)))
         return errs
 
@@ -231,7 +228,7 @@ class LevyGAN:
         if self.w_dim > 2:
             noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
             g_in = torch.cat((noise, self.W_fixed), 1)
-            a_fixed_gen = self.netG(g_in)[:, self.w_dim:self.w_dim + self.a_dim].detach().numpy()
+            a_fixed_gen = self.netG(g_in)[:, self.w_dim:self.w_dim + self.a_dim].detach().cpu().numpy()
             errors = [sqrt(ot.wasserstein_1d(self.A_fixed_true[:, i], a_fixed_gen[:, i], p=2)) for i in
                       range(self.a_dim)]
             self.print_time("FIXED ERRORS")
@@ -282,7 +279,7 @@ class LevyGAN:
 
         return report
 
-    def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training):
+    def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training, descriptor: str = ''):
         labels = list_pairs(self.w_dim)
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 15))
         ax1.set_title("Individual 2-Wasserstein errors")
@@ -294,13 +291,17 @@ class LevyGAN:
         ax2.set_xlabel("iterations")
         ax2.legend(prop={'size': 15})
         fig.show()
-        graph_filename = f"model_saves/{self.dict_saves_folder}/graph_num{self.serial_number}.png"
+        graph_filename = f"model_saves/{self.dict_saves_folder}/graph_num{self.serial_number}_{descriptor}.png"
         fig.savefig(graph_filename)
 
-    def load_dicts(self, descriptor: str = ""):
+    def load_dicts(self,serial_num_to_load: int = -1, descriptor: str = ""):
+        if serial_num_to_load < 0:
+            sn = self.serial_number
+        else:
+            sn = serial_num_to_load
         folder_name = f'model_saves/{self.dict_saves_folder}/'
-        self.netG.load_state_dict(torch.load(folder_name + f'generator_{descriptor}.pt'))
-        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_{descriptor}.pt'))
+        self.netG.load_state_dict(torch.load(folder_name + f'generator_num{self.serial_number}_{descriptor}.pt'))
+        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt'))
 
     def load_dicts_unstructured(self, gen_filename, discr_filename):
         self.netG.load_state_dict(torch.load(gen_filename))
@@ -388,9 +389,13 @@ class LevyGAN:
 
         compute_joint_error = tr_conf['compute joint error']
 
+        descriptor = tr_conf['descriptor']
+
         filename = f"samples/samples_{self.w_dim}-dim.csv"
+        # whole_training_data = self.unfixed_test_data
         whole_training_data = np.genfromtxt(filename, dtype=np.float32, delimiter=',')
         whole_training_data = torch.tensor(whole_training_data, dtype=torch.float, device=self.device).split(bsz)
+
 
         # Early stopping setup
         min_sum = float('inf')
@@ -479,20 +484,20 @@ class LevyGAN:
                     error_sum = sum(errors)
                     if error_sum <= min_sum:
                         min_sum = error_sum
-                        self.save_current_dicts(report=report_for_saving_dicts, descriptor="min_sum")
+                        self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}_min_sum")
                         print("Saved parameters (fixed error)")
 
                     chen_err_sum = sum(chen_errors)
                     if chen_err_sum < min_chen_err_sum:
                         min_chen_err_sum = chen_err_sum
-                        self.save_current_dicts(report=report_for_saving_dicts, descriptor="min_chen")
+                        self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}min_chen")
                         print("Saved parameters (chen errors)")
 
                     self.print_time(description="SAVING DICTS")
                     self.do_timeing = False
                 iters += 1
 
-        self.draw_error_graphs(wass_errors_through_training, chen_errors_through_training)
+        self.draw_error_graphs(wass_errors_through_training, chen_errors_through_training, descriptor=descriptor)
 
     # def chen_train(self, tr_conf: dict):
     #     print("blub")

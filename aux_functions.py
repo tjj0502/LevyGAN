@@ -44,6 +44,10 @@ def init_config(cf: dict):
     else:
         s_dim = 1
     cf['s dim'] = s_dim
+    if torch.cuda.is_available():
+        cf['ngpu'] = 1
+        cf['device'] = torch.device('cuda')
+
 
 
 def chen_combine(w_a_in: torch.Tensor, _w_dim: int):
@@ -173,7 +177,7 @@ def generate_signs(_w_dim: int):
     return res
 
 
-def generate_tms(_w_dim: int, device: torch.DeviceObjType):
+def generate_tms(_w_dim: int, device):
     _a_dim = int((_w_dim * (_w_dim - 1)) // 2)
     signs = torch.tensor(generate_signs(_w_dim), dtype=torch.float, device=device).view(1, 2**_w_dim, _w_dim).contiguous()
     m_list = []
@@ -203,7 +207,7 @@ def generate_tms(_w_dim: int, device: torch.DeviceObjType):
             values.append(1.0)
             idx += 1
 
-    indices = torch.tensor([first_dim, second_dim, third_dim])
+    indices = torch.tensor([first_dim, second_dim, third_dim], device=device)
     _T = torch.sparse_coo_tensor(indices=indices, values=values, size=(_w_dim, _w_dim, _a_dim),
                                  dtype=torch.float, device=device).to_dense().contiguous().detach()
     return _T, _M, signs

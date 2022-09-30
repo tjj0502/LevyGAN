@@ -16,7 +16,7 @@ class Generator(nn.Module):
         self.s_dim = cf['s dim']
         self.generator_symmetry_mode = cf['generator symmetry mode']
         self.main = generator_main(cf)
-        self.T, self.M, self.S = generate_tms(self.w_dim)
+        self.T, self.M, self.S = generate_tms(_w_dim=self.w_dim, device=self.device)
 
     def compute_wth(self, w_in: torch.Tensor, h_in: torch.Tensor):
         _bsz = w_in.shape[0]
