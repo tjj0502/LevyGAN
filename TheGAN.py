@@ -2,10 +2,13 @@ from pathlib import Path
 import timeit
 import copy
 import matplotlib.pyplot as plt
+import torch.cuda
+
 from aux_functions import *
 from Generator import Generator
 from Discriminator import Discriminator
-import configs
+import configs_folder.configs as configs
+import importlib
 
 from torch.autograd import grad as torch_grad
 
@@ -18,15 +21,19 @@ class LevyGAN:
 
     def __init__(self, config_in: dict = None, serial_num_in: int = -1):
         if config_in is None:
-            import configs
+            importlib.reload(configs)
             cf = configs.config
         else:
             cf = config_in
         init_config(cf)
 
         # ============ Model config ===============
-        self.device = cf['device']
-        self.ngpu = cf['ngpu']
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda')
+            self.ngpu = 1
+        else:
+            self.device = torch.device('cpu')
+            self.ngpu = 0
         self.noise_size = cf['noise size']
         self.w_dim = cf['w dim']
         self.a_dim = cf['a dim']
@@ -130,7 +137,9 @@ class LevyGAN:
             'joint wass error': -1.0,
             'st dev error': -1.0,
             'loss d': 0.0,
-            'gradient norm': 0.0
+            'gradient norm': 0.0,
+            'min sum': float('inf'),
+            'min chen sum': float('inf')
         }
 
         self.do_timeing = cf['do timeing']
@@ -320,9 +329,16 @@ class LevyGAN:
 
         return report
 
-    def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training, descriptor: str = ''):
+    def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training, joint_errors_through_training: list = [], descriptor: str = ''):
+        if joint_errors_through_training:
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(30, 15))
+            ax3.set_title("Joint 2-Wasserstein errors")
+            ax3.plot(joint_errors_through_training)
+            ax3.set_ylim([-0.01, 0.8])
+            ax3.set_xlabel("iterations")
+        else:
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 15))
         labels = list_pairs(self.w_dim)
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 15))
         ax1.set_title("Individual 2-Wasserstein errors")
         ax1.plot(wass_errors_through_training, label=labels)
         ax1.set_ylim([-0.005, 0.2])
@@ -390,7 +406,7 @@ class LevyGAN:
 
     def classic_train(self, tr_conf_in: dict = None):
         if tr_conf_in is None:
-            import configs
+            importlib.reload(configs)
             tr_conf = configs.training_config
         else:
             tr_conf = tr_conf_in
@@ -440,12 +456,13 @@ class LevyGAN:
         whole_training_data = torch.tensor(whole_training_data, dtype=torch.float, device=self.device).split(bsz)
 
         # Early stopping setup
-        min_sum = float('inf')
-        min_chen_err_sum = float('inf')
+        self.test_results['min sum'] = float('inf')
+        self.test_results['min chen sum'] = float('inf')
 
         # For graphing
         wass_errors_through_training = []
         chen_errors_through_training = []
+        joint_errors_through_training = []
 
         iters = 0
         for epoch in range(self.num_epochs):
@@ -524,14 +541,14 @@ class LevyGAN:
                     report_for_saving_dicts = self.make_report(add_line_break=False)
                     # Early stopping checkpoint
                     error_sum = sum(errors)
-                    if error_sum <= min_sum:
-                        min_sum = error_sum
+                    if error_sum <= self.test_results['min sum']:
+                        self.test_results['min sum'] = error_sum
                         self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}_min_sum")
                         print("Saved parameters (fixed error)")
 
                     chen_err_sum = sum(chen_errors)
-                    if chen_err_sum < min_chen_err_sum:
-                        min_chen_err_sum = chen_err_sum
+                    if chen_err_sum < self.test_results['min chen sum']:
+                        self.test_results['min chen sum'] = chen_err_sum
                         self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}min_chen")
                         print("Saved parameters (chen errors)")
 

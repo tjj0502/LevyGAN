@@ -1,4 +1,4 @@
-scp havok:/home/jelincic/LevyGAN/model_saves/model_G4_D4_gp_Hsym_4d_62noise/graph* PycharmProjects/LevyGAN/
+scp havok:/home/jelincic/LevyGAN/model_saves/model_*/graph* PycharmProjects/LevyGAN/graphs/
 
 scp PycharmProjects/LevyGAN/*.py havok:~/LevyGAN/
 
