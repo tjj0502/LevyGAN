@@ -538,6 +538,8 @@ class LevyGAN:
                     wass_errors_through_training.append(errors)
                     chen_errors = self.test_results['chen errors']
                     chen_errors_through_training.append(chen_errors)
+                    if compute_joint_error:
+                        joint_errors_through_training.append(self.test_results['joint wass error'])
                     report_for_saving_dicts = self.make_report(add_line_break=False)
                     # Early stopping checkpoint
                     error_sum = sum(errors)
@@ -556,7 +558,7 @@ class LevyGAN:
                     self.do_timeing = False
                 iters += 1
 
-        self.draw_error_graphs(wass_errors_through_training, chen_errors_through_training, descriptor=descriptor)
+        self.draw_error_graphs(wass_errors_through_training, chen_errors_through_training, joint_errors_through_training=joint_errors_through_training, descriptor=descriptor)
 
     # def chen_train(self, tr_conf: dict):
     #     print("blub")
