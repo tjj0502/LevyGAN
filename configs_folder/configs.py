@@ -22,7 +22,7 @@ config = {
     'Lipschitz mode': 'gp',
     'weight clipping limit': 0.01,
     'gp weight': 20.0,
-    'batch size': 2048,
+    'batch size': 1024,
     'test batch size': 16384,
     'unfixed test batch size': 16384,
     'joint wass dist batch size': 8192,
@@ -32,7 +32,7 @@ config = {
 }
 
 training_config = {
-    'num epochs': 30,
+    'num epochs': 2,
     'num Chen iters': 5000,
     'optimizer': 'Adam',
     'lrG': 0.00005,
@@ -42,7 +42,7 @@ training_config = {
     'Lipschitz mode': 'gp',
     'weight clipping limit': 0.01,
     'gp weight': 20.0,
-    'batch size': 2048,
+    'batch size': 1024,
     'compute joint error': True,
     'descriptor': ''
 }

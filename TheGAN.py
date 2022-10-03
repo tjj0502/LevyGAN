@@ -251,11 +251,11 @@ class LevyGAN:
         return difference.mean()
 
     def do_tests(self, comp_joint_err=False, comp_grad_norm=False, comp_loss_d=False):
-        data = self.samples_torch[:self.unfixed_test_bsz]
-        actual_bsz = data.shape[0]
+        unfixed_data = self.samples_torch[:self.unfixed_test_bsz]
+        actual_bsz = unfixed_data.shape[0]
 
         noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
-        w = data[:, :self.w_dim]
+        w = unfixed_data[:, :self.w_dim]
         z = torch.cat((noise, w), dim=1)
         self.print_time("Z FOR REPORT")
         fake_data = self.netG(z)
@@ -265,11 +265,11 @@ class LevyGAN:
         if comp_grad_norm:
             pruning_indices = self.pruning_indices_for_testing
             pruned_fake_data = fake_data[pruning_indices]
-            gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight=0)
+            gradient_penalty, gradient_norm = self._gradient_penalty(unfixed_data, pruned_fake_data, gp_weight=0)
             self.test_results['gradient norm'] = gradient_norm
 
         if comp_loss_d:
-            prob_real = self.netD(data)
+            prob_real = self.netD(unfixed_data)
             prob_fake = self.netD(fake_data)
             self.print_time("netD FOR REPORT")
             loss_d_fake = prob_fake.mean(0).view(1)
@@ -462,6 +462,7 @@ class LevyGAN:
 
         filename = f"samples/samples_{self.w_dim}-dim.csv"
         whole_training_data = self.samples_torch.split(bsz)
+        print(len(whole_training_data))
 
         # Early stopping setup
         self.test_results['min sum'] = float('inf')
@@ -520,7 +521,7 @@ class LevyGAN:
                 self.print_time(description="OPT D")
 
                 # train Generator with probability 1/5
-                if iters % 5 == 0:
+                if iters % 3 == 0:
                     self.netG.zero_grad()
                     noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
                     w = data[:, :self.w_dim]
@@ -536,7 +537,7 @@ class LevyGAN:
                     opt_g.step()
                     self.print_time(description="OPT G")
 
-                if iters % 200 == 0:
+                if iters % 100 == 0:
                     self.print_time(description="BEFORE TESTS")
                     self.do_tests(comp_joint_err=compute_joint_error)
                     self.print_time(description="AFTER TESTS")
