@@ -253,7 +253,6 @@ class LevyGAN:
     def do_tests(self, comp_joint_err=False, comp_grad_norm=False, comp_loss_d=False):
         data = self.samples_torch[:self.unfixed_test_bsz]
         actual_bsz = data.shape[0]
-        print(actual_bsz)
 
         noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
         w = data[:, :self.w_dim]
@@ -261,7 +260,6 @@ class LevyGAN:
         self.print_time("Z FOR REPORT")
         fake_data = self.netG(z)
         fake_data = fake_data.detach()
-        print(fake_data.shape)
         self.print_time("RUNNING netG FOR REPORT")
 
         if comp_grad_norm:

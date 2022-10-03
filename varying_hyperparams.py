@@ -26,7 +26,7 @@ def check_learning_rates():
         'lrG': 0.00005,
         'lrD': 0.0001,
         'beta1': 0.1,
-        'beta2': 0.98,
+        'beta2': 0.99,
         'Lipschitz mode': 'gp',
         'weight clipping limit': 0.01,
         'gp weight': 20.0,
@@ -46,7 +46,7 @@ def check_learning_rates():
         'lrG': 0.00005,
         'lrD': 0.0001,
         'beta1': 0.1,
-        'beta2': 0.98,
+        'beta2': 0.99,
         'Lipschitz mode': 'gp',
         'weight clipping limit': 0.01,
         'gp weight': 20.0,
@@ -56,15 +56,12 @@ def check_learning_rates():
     }
 
     result_grid = []
-    lr_gs = [0.0002, 0.0001, 0.00005, 0.00002, 0.00001, 0.000002]
+    lr_gs = [0.0001, 0.00005, 0.00002, 0.00001, 0.000005]
     lrs = []
     gan = LevyGAN(config)
     gan.do_tests()
     report = gan.make_report(add_line_break=False)
     gan.save_current_dicts(report=report, descriptor="INITIAL")
-    for mult in [20, 10, 5, 2, 1, 0.5]:
-        lr_pairs = [(x, mult * x) for x in lr_gs]
-        lrs += lr_pairs
     for mult in [20, 10, 5, 2, 1, 0.5]:
         result_row = []
         for lr_g in lr_gs:
@@ -82,7 +79,7 @@ def check_learning_rates():
             gan.load_dicts(descriptor=f'lrG_{lr_g:.6f}_lrD_{lr_d:.6f}min_chen')
             gan.do_tests(comp_joint_err=True)
             joint_err_min_chen = gan.test_results['joint_wass_error']
-            entry = (min_sum, min_chen_sum, joint_err_min_sum, joint_err_min_chen)
+            entry = f" {min_sum:.5f}, {min_chen_sum:.5f}, {joint_err_min_sum:.5f}, {joint_err_min_chen:.5f} "
             result_row.append(entry)
         result_grid.append(result_row)
 
