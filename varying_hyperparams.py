@@ -23,10 +23,18 @@ def check_learning_rates():
             lr_d = mult * lr_g
             tr_conf['lrG'] = lr_g
             tr_conf['lrD'] = lr_d
-            tr_conf['descriptor'] = f"lrG_{lr_g: .6f}_lrD_{lr_d: .6f}"
+            tr_conf['descriptor'] = f"lrG_{lr_g:.6f}_lrD_{lr_d:.6f}"
             gan.load_dicts(descriptor="INITIAL")
             gan.classic_train(tr_conf)
-            entry = (gan.test_results['min sum'], gan.test_results['min chen sum'])
+            min_sum = gan.test_results['min sum']
+            min_chen_sum = gan.test_results['min chen sum']
+            gan.load_dicts(descriptor=f'lrG_{lr_g:.6f}_lrD_{lr_d:.6f}_min_sum')
+            gan.do_tests(comp_joint_err=True)
+            joint_err_min_sum = gan.test_results['joint_wass_error']
+            gan.load_dicts(descriptor=f'lrG_{lr_g:.6f}_lrD_{lr_d:.6f}min_chen')
+            gan.do_tests(comp_joint_err=True)
+            joint_err_min_chen = gan.test_results['joint_wass_error']
+            entry = (min_sum, min_chen_sum, joint_err_min_sum, joint_err_min_chen)
             result_row.append(entry)
         result_grid.append(result_row)
 
@@ -48,7 +56,7 @@ def check_betas():
         for beta1 in [0.0, 0.05, 0.1, 0.5, 0.8, 0.95]:
             tr_conf['beta1'] = beta1
             tr_conf['beta2'] = beta2
-            tr_conf['descriptor'] = f"beta1_{beta1: .2f}_beta2_{beta2: .3f}"
+            tr_conf['descriptor'] = f"beta1_{beta1:.2f}_beta2_{beta2:.3f}"
             gan.load_dicts(descriptor="INITIAL")
             gan.classic_train(tr_conf)
             entry = (gan.test_results['min sum'], gan.test_results['min chen sum'])

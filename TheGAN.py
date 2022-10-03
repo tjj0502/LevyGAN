@@ -121,9 +121,8 @@ class LevyGAN:
         self.A_fixed_true = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')
         self.A_fixed_true = self.A_fixed_true[:self.test_bsz, self.w_dim:(self.w_dim + self.a_dim)]
 
-        unfixed_test_data_filename = f"samples/non-fixed_test_samples_{self.w_dim}-dim.csv"
-        self.unfixed_test_data = np.genfromtxt(unfixed_test_data_filename, dtype=float, delimiter=',')[
-                                 :self.unfixed_test_bsz]
+        samples_filename = f"samples/samples_{self.w_dim}-dim.csv"
+        self.samples = np.genfromtxt(samples_filename, dtype=float, delimiter=',')
 
         self.fixed_data_for_2d = []
         if self.w_dim == 2:
@@ -163,9 +162,8 @@ class LevyGAN:
         self.A_fixed_true = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')
         self.A_fixed_true = self.A_fixed_true[:self.test_bsz, self.w_dim:(self.w_dim + self.a_dim)]
 
-        unfixed_test_data_filename = f"samples/non-fixed_test_samples_{self.w_dim}-dim.csv"
-        self.unfixed_test_data = np.genfromtxt(unfixed_test_data_filename, dtype=float, delimiter=',')[
-                                 :self.unfixed_test_bsz]
+        samples_filename = f"samples/samples_{self.w_dim}-dim.csv"
+        self.samples = np.genfromtxt(samples_filename, dtype=float, delimiter=',')
 
         self.fixed_data_for_2d = []
         if self.w_dim == 2:
@@ -249,7 +247,7 @@ class LevyGAN:
         return difference.mean()
 
     def do_tests(self, comp_joint_err=False):
-        data = torch.tensor(self.unfixed_test_data, dtype=torch.float, device=self.device)
+        data = torch.tensor(self.samples[:self.unfixed_test_bsz], dtype=torch.float, device=self.device)
         actual_bsz = data.shape[0]
 
         noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
@@ -313,14 +311,14 @@ class LevyGAN:
         if not (chen_iters is None):
             report += f"chen_iters: {chen_iters}/{self.num_Chen_iters}, "
 
-        report += f"discr grad norm: {self.test_results['gradient norm']: .5f}, "
-        report += f"discr loss: {self.test_results['loss d']: .5f}"
+        report += f"discr grad norm: {self.test_results['gradient norm']:.5f}, "
+        report += f"discr loss: {self.test_results['loss d']:.5f}"
         joint_wass_error = self.test_results['joint wass error']
         if joint_wass_error >= 0:
-            report += f", joint err: {joint_wass_error: .5f}"
+            report += f", joint err: {joint_wass_error:.5f}"
         st_dev_error = self.test_results['st dev error']
         if st_dev_error >= 0:
-            report += f", st dev err: {st_dev_error: .5f}"
+            report += f", st dev err: {st_dev_error:.5f}"
         pretty_errors = make_pretty(self.test_results['errors'])
         pretty_chen_errors = make_pretty(self.test_results['chen errors'])
         if len(pretty_chen_errors) == 1:
@@ -451,9 +449,7 @@ class LevyGAN:
         descriptor = tr_conf['descriptor']
 
         filename = f"samples/samples_{self.w_dim}-dim.csv"
-        # whole_training_data = self.unfixed_test_data
-        whole_training_data = np.genfromtxt(filename, dtype=np.float32, delimiter=',')
-        whole_training_data = torch.tensor(whole_training_data, dtype=torch.float, device=self.device).split(bsz)
+        whole_training_data = torch.tensor(self.samples, dtype=torch.float, device=self.device).split(bsz)
 
         # Early stopping setup
         self.test_results['min sum'] = float('inf')

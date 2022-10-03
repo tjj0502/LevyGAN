@@ -1,3 +1,4 @@
+import numpy
 import torch
 import numpy as np
 import ot
@@ -54,7 +55,6 @@ def init_config(cf: dict):
     else:
         cf['ngpu'] = 0
         cf['device'] = torch.device('cpu')
-
 
 
 def chen_combine(w_a_in: torch.Tensor, _w_dim: int):
@@ -157,6 +157,107 @@ def list_pairs(_w_dim: int):
     return lst
 
 
+pair_lists = [list_pairs(wd) for wd in range(10)]
+
+
+def fast_w_indices(a_i: int, _w_dim: int):
+    if a_i >= int(_w_dim * (_w_dim - 1) // 2) or a_i < 0 or _w_dim < 2:
+        return None
+    if _w_dim < len(pair_lists):
+        return pair_lists[_w_dim][a_i]
+    else:
+        return w_indices(a_i, _w_dim)
+
+
+def gen_4mom_approx(_w_dim: int, _batch_size: int, _W: np.ndarray = None, _K: np.ndarray = None, _H: np.ndarray = None):
+    _a_dim = int(_w_dim * (_w_dim - 1) // 2)
+
+    lst = []
+    for k in range(_w_dim):
+        for l in range(k + 1, _w_dim):
+            lst.append((k, l))
+
+    if _W is None:
+        __W = np.random.randn(_batch_size, _w_dim)
+    else:
+        __W = _W
+
+    if _H is None:
+        __H = sqrt(1 / 12) * np.random.randn(_batch_size, _w_dim)
+    else:
+        __H = _H
+
+    if _K is None:
+        __K = sqrt(1 / 720) * np.random.randn(_batch_size, _w_dim)
+    else:
+        __K = _K
+
+    squared_K = np.square(__K)
+    C = np.random.exponential(8 / 15, size=(_batch_size, _w_dim))
+
+    p = 21130 / 25621
+    c = sqrt(1 / 3) - 8 / 15
+
+    ber = np.random.binomial(1, p=p, size=(_batch_size, _a_dim))
+    uni = np.random.uniform(-sqrt(3), sqrt(3), size=(_batch_size, _a_dim))
+    rademacher = np.ones(_a_dim) - 2 * np.random.binomial(1, 0.5, size=(_batch_size, _a_dim))
+    ksi = ber * uni + (1 - ber) * rademacher
+
+    def sigma(i: int, j: int):
+        return np.sqrt(3 / 28 * (C[:, i] + c) * (C[:, j] + c) + 144 / 28 * (squared_K[:, i] + squared_K[:, j]))
+
+    idx = 0
+    for k in range(_w_dim):
+        for l in range(k + 1, _w_dim):
+            sig = sigma(k, l)
+            # print(f"shape: {sig.shape}, k: {k}, l: {l}, sig: {sig}")
+
+            # now calculate a from ksi and sigma (but store a in ksi)
+            ksi[:, idx] *= sig
+
+            # calculate the whole thing
+            ksi[:, idx] += __H[:, k] * __W[:, l] - __W[:, k] * __H[:, l] + 12 * (
+                    __K[:, k] * __H[:, l] - __H[:, k] * __K[:, l])
+            idx += 1
+
+    return np.concatenate((__W, ksi), axis=1)
+
+
+def gen_2mom_approx(_w_dim: int, _batch_size: int, _W: np.ndarray = None):
+    _a_dim = int(_w_dim * (_w_dim - 1) // 2)
+    if _W is None:
+        __W = np.random.randn(_batch_size, _w_dim)
+    else:
+        __W = _W
+    a_fixed_gen = np.random.randn(_batch_size, _a_dim)
+    tv = [true_st_devs(__W[i]) for i in range(_batch_size)]
+    tv = numpy.array(tv)
+    print(tv.shape)
+    print(a_fixed_gen.shape)
+    a_fixed_gen = a_fixed_gen * tv
+    return np.concatenate((__W, a_fixed_gen), axis=1)
+
+
+def four_combos(n: int):
+    lst = []
+    for i in range(n):
+        for j in range(i, n):
+            for k in range(j, n):
+                for l in range(k, n):
+                    lst.append((i, j, k, l))
+    return lst
+
+
+def fourth_moments(input_samples: np.ndarray):
+    dim = input_samples.shape[1]
+    lst = four_combos(dim)
+    res = []
+    for i, j, k, l in lst:
+        col = input_samples[:, i] * input_samples[:, j] * input_samples[:, k] * input_samples[:, l]
+        res.append(col.mean())
+    return res
+
+
 def make_pretty(errs):
     return ["{0:0.4f}".format(i) for i in errs]
 
@@ -187,7 +288,8 @@ def generate_signs(_w_dim: int):
 
 def generate_tms(_w_dim: int, device):
     _a_dim = int((_w_dim * (_w_dim - 1)) // 2)
-    signs = torch.tensor(generate_signs(_w_dim), dtype=torch.float, device=device).view(1, 2**_w_dim, _w_dim).contiguous()
+    signs = torch.tensor(generate_signs(_w_dim), dtype=torch.float, device=device).view(1, 2 ** _w_dim,
+                                                                                        _w_dim).contiguous()
     m_list = []
 
     for s in range(signs.shape[1]):

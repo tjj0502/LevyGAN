@@ -68,9 +68,9 @@ function generate_all()
     end
 end
 
-function generate_all_small()
+function generate_unfixed_test_samples()
     for i in 2:8
-        gen_samples(its = 4096, m = i, filename = "samples/non-fixed_test_samples_$i-dim.csv")
+        gen_samples(its = 65536, m = i, filename = "samples/non-fixed_test_samples_$i-dim.csv")
         println("$i done")
     end
 end
