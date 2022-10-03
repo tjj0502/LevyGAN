@@ -123,6 +123,7 @@ class LevyGAN:
 
         samples_filename = f"samples/samples_{self.w_dim}-dim.csv"
         self.samples = np.genfromtxt(samples_filename, dtype=float, delimiter=',')
+        self.samples_torch = torch.tensor(self.samples, dtype=torch.float, device=self.device)
 
         self.fixed_data_for_2d = []
         if self.w_dim == 2:
@@ -164,6 +165,7 @@ class LevyGAN:
 
         samples_filename = f"samples/samples_{self.w_dim}-dim.csv"
         self.samples = np.genfromtxt(samples_filename, dtype=float, delimiter=',')
+        self.samples_torch = torch.tensor(self.samples, dtype=torch.float, device=self.device)
 
         self.fixed_data_for_2d = []
         if self.w_dim == 2:
@@ -246,8 +248,8 @@ class LevyGAN:
         difference = np.abs(self.st_dev_W_fixed - np.sqrt(np.abs(empirical_second_moments(_a_generated))))
         return difference.mean()
 
-    def do_tests(self, comp_joint_err=False):
-        data = torch.tensor(self.samples[:self.unfixed_test_bsz], dtype=torch.float, device=self.device)
+    def do_tests(self, comp_joint_err=False, comp_grad_norm=False):
+        data = self.samples_torch[:self.unfixed_test_bsz]
         actual_bsz = data.shape[0]
 
         noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
@@ -258,7 +260,9 @@ class LevyGAN:
         pruning_indices = torch.randperm(actual_bsz * self.s_dim)[:actual_bsz]
         pruned_fake_data = fake_data[pruning_indices]
 
-        gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight=0)
+        if comp_grad_norm:
+            gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight=0)
+            self.test_results['gradient norm'] = gradient_norm
 
         prob_real = self.netD(data)
         prob_fake = self.netD(fake_data)
@@ -296,7 +300,6 @@ class LevyGAN:
         self.test_results['joint wass error'] = joint_wass_error
         self.test_results['st dev error'] = st_dev_err
         self.test_results['loss d'] = loss_d.item()
-        self.test_results['gradient norm'] = gradient_norm
 
     def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
         report = ""
@@ -311,7 +314,9 @@ class LevyGAN:
         if not (chen_iters is None):
             report += f"chen_iters: {chen_iters}/{self.num_Chen_iters}, "
 
-        report += f"discr grad norm: {self.test_results['gradient norm']:.5f}, "
+        grad_norm = self.test_results['gradient norm']
+        if grad_norm >=0:
+            report += f"discr grad norm: {grad_norm:.5f}, "
         report += f"discr loss: {self.test_results['loss d']:.5f}"
         joint_wass_error = self.test_results['joint wass error']
         if joint_wass_error >= 0:
@@ -327,7 +332,8 @@ class LevyGAN:
 
         return report
 
-    def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training, joint_errors_through_training: list = [], descriptor: str = ''):
+    def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training,
+                          joint_errors_through_training: list = [], descriptor: str = ''):
         if joint_errors_through_training:
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(30, 15))
             ax3.set_title("Joint 2-Wasserstein errors")
@@ -357,8 +363,10 @@ class LevyGAN:
         else:
             sn = serial_num_to_load
         folder_name = f'model_saves/{self.dict_saves_folder}/'
-        self.netG.load_state_dict(torch.load(folder_name + f'generator_num{self.serial_number}_{descriptor}.pt', map_location=self.device))
-        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt', map_location=self.device))
+        self.netG.load_state_dict(
+            torch.load(folder_name + f'generator_num{self.serial_number}_{descriptor}.pt', map_location=self.device))
+        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt',
+                                             map_location=self.device))
 
     def load_dicts_unstructured(self, gen_filename, discr_filename):
         self.netG.load_state_dict(torch.load(gen_filename, map_location=self.device))
@@ -449,7 +457,7 @@ class LevyGAN:
         descriptor = tr_conf['descriptor']
 
         filename = f"samples/samples_{self.w_dim}-dim.csv"
-        whole_training_data = torch.tensor(self.samples, dtype=torch.float, device=self.device).split(bsz)
+        whole_training_data = self.samples_torch.split(bsz)
 
         # Early stopping setup
         self.test_results['min sum'] = float('inf')
@@ -487,6 +495,7 @@ class LevyGAN:
                 pruned_fake_data = fake_data[pruning_indices]
 
                 gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight=gp_weight)
+                self.test_results['gradient norm'] = gradient_norm
                 self.print_time(description="GRAD PENALTY")
 
                 prob_real = self.netD(data)
@@ -523,7 +532,7 @@ class LevyGAN:
                     opt_g.step()
                     self.print_time(description="OPT G")
 
-                if iters % 100 == 0:
+                if iters % 200 == 0:
                     self.print_time(description="BEFORE TESTS")
                     self.do_tests(comp_joint_err=compute_joint_error)
                     self.print_time(description="AFTER TESTS")
@@ -554,7 +563,8 @@ class LevyGAN:
                     self.do_timeing = False
                 iters += 1
 
-        self.draw_error_graphs(wass_errors_through_training, chen_errors_through_training, joint_errors_through_training=joint_errors_through_training, descriptor=descriptor)
+        self.draw_error_graphs(wass_errors_through_training, chen_errors_through_training,
+                               joint_errors_through_training=joint_errors_through_training, descriptor=descriptor)
 
     # def chen_train(self, tr_conf: dict):
     #     print("blub")
