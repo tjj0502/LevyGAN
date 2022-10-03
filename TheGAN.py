@@ -125,6 +125,8 @@ class LevyGAN:
         self.samples = np.genfromtxt(samples_filename, dtype=float, delimiter=',')
         self.samples_torch = torch.tensor(self.samples, dtype=torch.float, device=self.device)
 
+        self.pruning_indices_for_testing = select_pruning_indices(self.s_dim, self.unfixed_test_bsz)
+
         self.fixed_data_for_2d = []
         if self.w_dim == 2:
             self.fixed_data_for_2d = [
@@ -248,28 +250,34 @@ class LevyGAN:
         difference = np.abs(self.st_dev_W_fixed - np.sqrt(np.abs(empirical_second_moments(_a_generated))))
         return difference.mean()
 
-    def do_tests(self, comp_joint_err=False, comp_grad_norm=False):
+    def do_tests(self, comp_joint_err=False, comp_grad_norm=False, comp_loss_d=False):
         data = self.samples_torch[:self.unfixed_test_bsz]
         actual_bsz = data.shape[0]
+        print(actual_bsz)
 
         noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
         w = data[:, :self.w_dim]
         z = torch.cat((noise, w), dim=1)
+        self.print_time("Z FOR REPORT")
         fake_data = self.netG(z)
         fake_data = fake_data.detach()
-        pruning_indices = torch.randperm(actual_bsz * self.s_dim)[:actual_bsz]
-        pruned_fake_data = fake_data[pruning_indices]
+        print(fake_data.shape)
+        self.print_time("RUNNING netG FOR REPORT")
 
         if comp_grad_norm:
+            pruning_indices = self.pruning_indices_for_testing
+            pruned_fake_data = fake_data[pruning_indices]
             gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight=0)
             self.test_results['gradient norm'] = gradient_norm
 
-        prob_real = self.netD(data)
-        prob_fake = self.netD(fake_data)
-
-        loss_d_fake = prob_fake.mean(0).view(1)
-        loss_d_real = prob_real.mean(0).view(1)
-        loss_d = loss_d_fake - self.s_dim * loss_d_real
+        if comp_loss_d:
+            prob_real = self.netD(data)
+            prob_fake = self.netD(fake_data)
+            self.print_time("netD FOR REPORT")
+            loss_d_fake = prob_fake.mean(0).view(1)
+            loss_d_real = prob_real.mean(0).view(1)
+            loss_d = loss_d_fake - self.s_dim * loss_d_real
+            self.test_results['loss d'] = loss_d.item()
         self.print_time("UNFIXED PART OF REPORT")
 
         chen_errors = chen_error_3step(fake_data, self.w_dim)
@@ -299,7 +307,6 @@ class LevyGAN:
         self.test_results['chen errors'] = chen_errors
         self.test_results['joint wass error'] = joint_wass_error
         self.test_results['st dev error'] = st_dev_err
-        self.test_results['loss d'] = loss_d.item()
 
     def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
         report = ""
@@ -315,8 +322,7 @@ class LevyGAN:
             report += f"chen_iters: {chen_iters}/{self.num_Chen_iters}, "
 
         grad_norm = self.test_results['gradient norm']
-        if grad_norm >=0:
-            report += f"discr grad norm: {grad_norm:.5f}, "
+        report += f"discr grad norm: {grad_norm:.5f}, "
         report += f"discr loss: {self.test_results['loss d']:.5f}"
         joint_wass_error = self.test_results['joint wass error']
         if joint_wass_error >= 0:
@@ -491,13 +497,6 @@ class LevyGAN:
                 fake_data = self.netG(z)
                 self.print_time(description="netG 1")
                 fake_data = fake_data.detach()
-                pruning_indices = torch.randperm(actual_bsz * self.s_dim)[:actual_bsz]
-                pruned_fake_data = fake_data[pruning_indices]
-
-                gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data, gp_weight=gp_weight)
-                self.test_results['gradient norm'] = gradient_norm
-                self.print_time(description="GRAD PENALTY")
-
                 prob_real = self.netD(data)
                 prob_fake = self.netD(fake_data)
                 self.print_time(description="netD 1 twice")
@@ -505,8 +504,15 @@ class LevyGAN:
                 loss_d_fake = prob_fake.mean(0).view(1)
                 loss_d_real = prob_real.mean(0).view(1)
                 loss_d = loss_d_fake - self.s_dim * loss_d_real
+                self.test_results['loss d'] = loss_d.item()
 
                 if self.Lipschitz_mode == 'gp':
+                    pruning_indices = torch.randperm(actual_bsz * self.s_dim)[:actual_bsz]
+                    pruned_fake_data = fake_data[pruning_indices]
+                    gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data,
+                                                                             gp_weight=gp_weight)
+                    self.test_results['gradient norm'] = gradient_norm
+                    self.print_time(description="GRAD PENALTY")
                     loss_d += gradient_penalty
 
                 self.print_time(description="BEFORE BACKPROP")

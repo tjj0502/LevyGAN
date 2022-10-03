@@ -1,3 +1,5 @@
+import math
+
 import numpy
 import torch
 import numpy as np
@@ -276,6 +278,19 @@ def read_serial_number(dict_saves_folder):
     return serial_num
 
 
+def select_pruning_indices(_s_dim: int, actual_bsz: int):
+    total_len = _s_dim * actual_bsz
+    if total_len <=65536:
+        result = torch.randperm(actual_bsz * _s_dim)[:actual_bsz]
+    else:
+        idx = 0
+        result = []
+        for i in range(actual_bsz):
+            result.append(idx)
+            idx = (idx + actual_bsz + 1) % total_len
+    return result
+
+
 def generate_signs(_w_dim: int):
     lst = []
     for i in range(2 ** _w_dim):
@@ -323,6 +338,7 @@ def generate_tms(_w_dim: int, device):
     return _T, _M, signs
 
 
+# W(b,w), T(w,h,a), S(1,s,h), H(b,1,h). WT(b,h,a) = tensordot(W,T,dims=1), SH = mul(S,H). WTSH(b,s,a) = matmul(SH, WT)
 def aux_compute_wth(w_in: torch.Tensor, h_in: torch.Tensor, _s: torch.Tensor, _t: torch.Tensor, _w_dim: int):
     _bsz = w_in.shape[0]
     assert w_in.shape == (_bsz, _w_dim)
@@ -330,9 +346,11 @@ def aux_compute_wth(w_in: torch.Tensor, h_in: torch.Tensor, _s: torch.Tensor, _t
     _H = torch.mul(_s, h_in.view(_bsz, 1, _w_dim))
     _WT = torch.tensordot(w_in, _t, dims=1)
     _WTH = torch.flatten(torch.matmul(_H, _WT).permute(1, 0, 2), start_dim=0, end_dim=1)
+    # output = flatten((s_dim, bsz, a_dim), start_dim = 0, end_dim = 1) so batches will be together
     return _WTH
 
 
+# M(s,1,a), B(1,b,a), MB = mul(M,B)
 def aux_compute_wthmb(wth_in: torch.Tensor, b_in: torch.Tensor, _m: torch.Tensor, _w_dim):
     _a_dim = int((_w_dim * (_w_dim - 1)) // 2)
     _bsz = b_in.shape[0]
