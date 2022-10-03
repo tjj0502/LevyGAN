@@ -53,8 +53,7 @@ def check_learning_rates():
     }
 
     result_grid = []
-    lr_gs = [0.0001, 0.00005, 0.00002, 0.00001, 0.000005]
-    lrs = []
+    lr_gs = [0.0001, 0.00005, 0.00002, 0.00001, 0.000005, 0.000002]
     gan = LevyGAN(config)
     gan.do_tests()
     report = gan.make_report(add_line_break=False)
@@ -80,7 +79,7 @@ def check_learning_rates():
             result_row.append(entry)
         result_grid.append(result_row)
 
-    nice_results = pandas.DataFrame(result_grid, columns=[0.0002, 0.0001, 0.00005, 0.00002, 0.00001, 0.000002], index=[20, 10, 5, 2, 1, 0.5])
+    nice_results = pandas.DataFrame(result_grid, columns=[0.0001, 0.00005, 0.00002, 0.00001, 0.000005, 0.000002], index=[20, 10, 5, 2, 1, 0.5])
     filename = f"model_saves/{gan.dict_saves_folder}/LRs_result_grid_{gan.dict_saves_folder}.txt"
     with open(filename, 'a+') as file:
         file.write("\n")
