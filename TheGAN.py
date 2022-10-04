@@ -495,9 +495,9 @@ class LevyGAN:
                 self.print_time(description="MAKE Z 1")
                 fake_data = self.netG(z)
                 self.print_time(description="netG 1")
-                fake_data = fake_data.detach()
+                fake_data_detached = fake_data.detach()
                 prob_real = self.netD(data)
-                prob_fake = self.netD(fake_data)
+                prob_fake = self.netD(fake_data_detached)
                 self.print_time(description="netD 1 twice")
 
                 loss_d_fake = prob_fake.mean(0).view(1)
@@ -507,7 +507,7 @@ class LevyGAN:
 
                 if self.Lipschitz_mode == 'gp':
                     pruning_indices = torch.randperm(actual_bsz * self.s_dim)[:actual_bsz]
-                    pruned_fake_data = fake_data[pruning_indices]
+                    pruned_fake_data = fake_data_detached[pruning_indices]
                     gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data,
                                                                              gp_weight=gp_weight)
                     self.test_results['gradient norm'] = gradient_norm
@@ -523,12 +523,6 @@ class LevyGAN:
                 # train Generator with probability 1/5
                 if iters % 3 == 0:
                     self.netG.zero_grad()
-                    noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
-                    w = data[:, :self.w_dim]
-                    z = torch.cat((noise, w), dim=1)
-                    self.print_time(description="MAKE Z 2")
-                    fake_data = self.netG(z)
-                    self.print_time(description="netG 2")
                     loss_g = self.netD(fake_data)
                     self.print_time(description="netD 2")
                     loss_g = - loss_g.mean(0).view(1)
