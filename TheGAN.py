@@ -38,16 +38,12 @@ class LevyGAN:
         self.w_dim = cf['w dim']
         self.a_dim = cf['a dim']
         self.s_dim = cf['s dim']
-
         # if 1 use GAN1, if 2 use GAN2, etc.
         self.which_discriminator = cf['which discriminator']
         self.which_generator = cf['which generator']
 
         self.generator_symmetry_mode = cf['generator symmetry mode']
         self.generator_last_width = cf['generator last width']
-
-        # Which method of keeping the critic Lipshcitz to use. 'gp' for gradient penalty, 'wc' for weight clipping
-        self.Lipschitz_mode = cf['Lipschitz mode']
 
         # slope for LeakyReLU
         self.leakyReLU_slope = cf['leakyReLU slope']
@@ -58,7 +54,7 @@ class LevyGAN:
         self.netG = Generator(cf)
         self.netD = Discriminator(cf)
 
-        self.dict_saves_folder = f'model_G{self.which_generator}_D{self.which_discriminator}_{self.Lipschitz_mode}_' + \
+        self.dict_saves_folder = f'model_G{self.which_generator}_D{self.which_discriminator}_' + \
                                  f'{self.generator_symmetry_mode}_{self.w_dim}d_{self.noise_size}noise'
         Path(f"model_saves/{self.dict_saves_folder}/").mkdir(parents=True, exist_ok=True)
 
@@ -69,10 +65,10 @@ class LevyGAN:
 
         # ============== Training config ===============
         # Number of training epochs using classical training
-        self.num_epochs = cf['num epochs']
+        self.num_epochs = 0
 
         # Number of iterations of Chen training
-        self.num_Chen_iters = cf['num Chen iters']
+        self.num_Chen_iters = 0
 
         # 'Adam' of 'RMSProp'
         # self.which_optimizer = cf['optimizer']
@@ -101,14 +97,14 @@ class LevyGAN:
         # for gradient penalty
         # self.gp_weight = cf['gp weight']
 
-        # self.bsz = cf['batch size']
+        # self.bsz = cf['bsz']
 
         # ============ Testing config ============
         self.num_tests_for2d = cf['num tests for 2d']
 
-        self.test_bsz = cf['test batch size']
-        self.unfixed_test_bsz = cf['unfixed test batch size']
-        self.joint_wass_dist_bsz = cf['joint wass dist batch size']
+        self.test_bsz = cf['test bsz']
+        self.unfixed_test_bsz = cf['unfixed test bsz']
+        self.joint_wass_dist_bsz = cf['joint wass dist bsz']
 
         self.W_fixed_whole = cf['W fixed whole']
         self.W_fixed = torch.tensor(self.W_fixed_whole, device=self.device)[:self.w_dim].unsqueeze(1).transpose(1, 0)
@@ -147,12 +143,34 @@ class LevyGAN:
         self.do_timeing = cf['do timeing']
         self.start_time = timeit.default_timer()
 
+    def config(self):
+        cf = {
+            'device': self.device,
+            'ngpu': self.ngpu,
+            'w dim': self.w_dim,
+            'a dim': self.a_dim,
+            'noise size': self.noise_size,
+            'which generator': self.which_generator,
+            'which discriminator': self.which_discriminator,
+            'generator symmetry mode': self.generator_symmetry_mode,
+            'generator last width': self.generator_last_width,
+            's dim': self.s_dim,
+            'leakyReLU slope': self.leakyReLU_slope,
+            'test bsz': self.test_bsz,
+            'unfixed test bsz': self.unfixed_test_bsz,
+            'joint wass dist bsz': self.joint_wass_dist_bsz,
+            'num tests for 2d': self.num_tests_for2d,
+            'W fixed whole': self.W_fixed_whole,
+            'do timeing': self.do_timeing
+        }
+        return cf
+
     def reload_testing_config(self, cf: dict):
         self.num_tests_for2d = cf['num tests for 2d']
 
-        self.test_bsz = cf['test batch size']
-        self.unfixed_test_bsz = cf['unfixed test batch size']
-        self.joint_wass_dist_bsz = cf['joint wass dist batch size']
+        self.test_bsz = cf['test bsz']
+        self.unfixed_test_bsz = cf['unfixed test bsz']
+        self.joint_wass_dist_bsz = cf['joint wass dist bsz']
 
         self.W_fixed_whole = cf['W fixed whole']
         self.W_fixed = torch.tensor(self.W_fixed_whole, device=self.device)[:self.w_dim].unsqueeze(1).transpose(1, 0)
@@ -306,6 +324,36 @@ class LevyGAN:
         self.test_results['joint wass error'] = joint_wass_error
         self.test_results['st dev error'] = st_dev_err
 
+    def model_score(self, a: float = 1.0, b: float = 0.2, c: float = 1.0):
+        self.do_tests(comp_joint_err=(c > 0.000001))
+        res = 0.0
+        res += a * sum(self.test_results['errors'])
+        res += b * sum(self.test_results['chen errors'])
+        res += c * self.test_results['joint wass error']
+
+    def compute_objective(self, optimizer, lrG, lrD, num_discr_iters, beta1, beta2, gp_weight, leaky_slope,
+                          tr_conf_in: dict = None):
+        self.leakyReLU_slope = leaky_slope
+        cf = self.config()
+        params_d = copy.deepcopy(self.netD.state_dict())
+        self.netD = Discriminator(cf)
+        self.netD.load_state_dict(params_d)
+
+        if tr_conf_in is None:
+            importlib.reload(configs)
+            tr_conf = configs.training_config
+        else:
+            tr_conf = tr_conf_in
+        tr_conf['optimizer'] = optimizer
+        tr_conf['lrG'] = lrG
+        tr_conf['lrD'] = lrD
+        tr_conf['num discr iters'] = num_discr_iters
+        tr_conf['beta1'] = beta1
+        tr_conf['beta2'] = beta2
+        tr_conf['gp_weight'] = gp_weight
+        self.classic_train(tr_conf)
+        return self.model_score()
+
     def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
         report = ""
         if add_line_break:
@@ -337,8 +385,8 @@ class LevyGAN:
         return report
 
     def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training,
-                          joint_errors_through_training: list = [], descriptor: str = ''):
-        if joint_errors_through_training:
+                          joint_errors_through_training=None, descriptor: str = ''):
+        if not (joint_errors_through_training is None):
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(30, 15))
             ax3.set_title("Joint 2-Wasserstein errors")
             ax3.plot(joint_errors_through_training)
@@ -430,6 +478,7 @@ class LevyGAN:
         # Learning rate for optimizers
         lr_g = tr_conf['lrG']
         lr_d = tr_conf['lrD']
+        num_discr_iters = tr_conf['num discr iters']
 
         # Beta hyperparam for Adam optimizers
         beta1 = tr_conf['beta1']
@@ -454,7 +503,7 @@ class LevyGAN:
         # for gradient penalty
         gp_weight = tr_conf['gp weight']
 
-        bsz = tr_conf['batch size']
+        bsz = tr_conf['bsz']
 
         compute_joint_error = tr_conf['compute joint error']
 
@@ -486,7 +535,7 @@ class LevyGAN:
                     for p in self.netD.parameters():
                         p.data.clamp_(-weight_clipping_limit, weight_clipping_limit)
 
-                # check actual batch size (last batch could be shorter)
+                # check actual bsz (last batch could be shorter)
                 actual_bsz = data.shape[0]
 
                 noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
@@ -521,7 +570,7 @@ class LevyGAN:
                 self.print_time(description="OPT D")
 
                 # train Generator with probability 1/5
-                if iters % 3 == 0:
+                if iters % num_discr_iters == 0:
                     self.netG.zero_grad()
                     loss_g = self.netD(fake_data)
                     self.print_time(description="netD 2")
@@ -594,4 +643,4 @@ class LevyGAN:
     #     # for gradient penalty
     #     gp_weight = tr_conf['gp weight']
     #
-    #     bsz = tr_conf['batch size']
+    #     bsz = tr_conf['bsz']
