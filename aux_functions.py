@@ -261,7 +261,12 @@ def fourth_moments(input_samples: np.ndarray):
 
 
 def make_pretty(errs):
-    return ["{0:0.4f}".format(i) for i in errs]
+    if isinstance(errs, list):
+        return ["{0:0.4f}".format(i) for i in errs]
+    elif isinstance(errs, float):
+        return float(f"{errs:.5f}")
+    else:
+        return errs
 
 
 def read_serial_number(dict_saves_folder):

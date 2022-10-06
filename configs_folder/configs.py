@@ -49,6 +49,7 @@ config = {
 
 training_config = {
     'num epochs': 2,
+    'max iters': None,
     'optimizer': 'Adam',
     'lrG': 0.00005,
     'lrD': 0.0001,

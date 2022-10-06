@@ -340,16 +340,16 @@ class LevyGAN:
         score = self.model_score()
 
         if score < self.test_results['best score']:
-            self.test_results['best score'] = score
+            self.test_results['best score'] = make_pretty(score)
             self.test_results['best score report'] = self.make_report(add_line_break=False)
         if sum(errors) < self.test_results['min sum']:
             self.test_results['min sum'] = sum(errors)
-            self.test_results['best fixed errors'] = errors
+            self.test_results['best fixed errors'] = make_pretty(errors)
         if sum(chen_errors) < self.test_results['min chen sum']:
             self.test_results['min chen sum'] = sum(chen_errors)
-            self.test_results['best chen errors'] = chen_errors
+            self.test_results['best chen errors'] = make_pretty(chen_errors)
         if joint_wass_error < self.test_results['best joint error']:
-            self.test_results['best joint error'] = joint_wass_error
+            self.test_results['best joint error'] = make_pretty(joint_wass_error)
 
 
     def model_score(self, a: float = 1.0, b: float = 0.2, c: float = 1.0):
@@ -381,6 +381,7 @@ class LevyGAN:
         scores = []
         attacments = {}
         for i in range(trials):
+            tr_conf['descriptor'] = f"COMP_OBJ_opt{optimizer}_lrG{lrG}_lrD{lrD}_numDitr{num_discr_iters}_b1_{beta1}_b2_{beta2}_gp{gp_weight}_lkslp{leaky_slope}_trial{i}"
             self.netG = Generator(cf)
             self.netD = Discriminator(cf)
             self.reset_test_results()
@@ -398,7 +399,7 @@ class LevyGAN:
             'status': STATUS_OK,
             'loss': mean,
             'loss_variance': variance,
-            'attachments' : attacments
+            'attachments': attacments
         }
 
         return result_dict
@@ -520,6 +521,10 @@ class LevyGAN:
 
         # Number of training epochs using classical training
         self.num_epochs = tr_conf['num epochs']
+        if tr_conf['max iters'] is None:
+            max_iters = int('inf')
+        else:
+            max_iters = tr_conf['max iters']
 
         # 'Adam' of 'RMSProp'
         which_optimizer = tr_conf['optimizer']
@@ -575,6 +580,8 @@ class LevyGAN:
         for epoch in range(self.num_epochs):
 
             for i, data in enumerate(whole_training_data):
+                if iters >= max_iters:
+                    break
                 self.print_time("TOP")
                 self.netD.zero_grad()
                 self.netG.zero_grad()
@@ -651,7 +658,7 @@ class LevyGAN:
                         print("Min fixed sum")
 
                     chen_err_sum = sum(chen_errors)
-                    if chen_err_sum < self.test_results['min chen sum']:
+                    if chen_err_sum <= self.test_results['min chen sum']:
                         self.test_results['min chen sum'] = chen_err_sum
                         if save_models:
                             self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}min_chen")
