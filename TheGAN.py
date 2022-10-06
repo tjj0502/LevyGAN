@@ -565,7 +565,6 @@ class LevyGAN:
 
         filename = f"samples/samples_{self.w_dim}-dim.csv"
         whole_training_data = self.samples_torch.split(bsz)
-        print(len(whole_training_data))
 
         # Early stopping setup
         self.test_results['min sum'] = float('inf')
