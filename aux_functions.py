@@ -123,7 +123,7 @@ def empirical_variances(_a_generated):
 
 def joint_wass_dist(x1: torch.Tensor, x2: torch.Tensor):
     closest_pairing_matrix = ot.dist(x1, x2, metric='sqeuclidean')
-    return sqrt(ot.emd2([], [], closest_pairing_matrix, numItermax=1000000))
+    return sqrt(ot.emd2([], [], closest_pairing_matrix, numItermax=10000000))
 
 
 def a_idx(i: int, j: int, _w_dim: int):
@@ -345,7 +345,7 @@ def aux_compute_wth(w_in: torch.Tensor, h_in: torch.Tensor, _s: torch.Tensor, _t
     assert h_in.shape == (_bsz, _w_dim)
     _H = torch.mul(_s, h_in.view(_bsz, 1, _w_dim))
     _WT = torch.tensordot(w_in, _t, dims=1)
-    _WTH = torch.flatten(torch.matmul(_H, _WT).permute(1, 0, 2), start_dim=0, end_dim=1)
+    _WTH = torch.flatten(torch.matmul(_H, _WT), start_dim=0, end_dim=1)
     # output = flatten((s_dim, bsz, a_dim), start_dim = 0, end_dim = 1) so batches will be together
     return _WTH
 
@@ -357,5 +357,5 @@ def aux_compute_wthmb(wth_in: torch.Tensor, b_in: torch.Tensor, _m: torch.Tensor
     assert wth_in.shape == (_bsz * (2 ** _w_dim), _a_dim)
     assert b_in.shape == (_bsz, _a_dim)
     _B = b_in.view(1, _bsz, _a_dim)
-    _MB = torch.flatten(torch.mul(_m, _B), start_dim=0, end_dim=1)
+    _MB = torch.flatten(torch.mul(_m, _B).permute(1, 0, 2), start_dim=0, end_dim=1)
     return wth_in + _MB

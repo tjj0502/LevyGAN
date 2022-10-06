@@ -2,7 +2,9 @@ from pathlib import Path
 import timeit
 import copy
 import matplotlib.pyplot as plt
+import numpy as np
 import torch.cuda
+from hyperopt import fmin, tpe, hp, STATUS_OK
 
 from aux_functions import *
 from Generator import Generator
@@ -121,8 +123,6 @@ class LevyGAN:
         self.samples = np.genfromtxt(samples_filename, dtype=float, delimiter=',')
         self.samples_torch = torch.tensor(self.samples, dtype=torch.float, device=self.device)
 
-        self.pruning_indices_for_testing = select_pruning_indices(self.s_dim, self.unfixed_test_bsz)
-
         self.fixed_data_for_2d = []
         if self.w_dim == 2:
             self.fixed_data_for_2d = [
@@ -137,7 +137,8 @@ class LevyGAN:
             'loss d': 0.0,
             'gradient norm': 0.0,
             'min sum': float('inf'),
-            'min chen sum': float('inf')
+            'min chen sum': float('inf'),
+            'best score': float('inf')
         }
 
         self.do_timeing = cf['do timeing']
@@ -193,17 +194,23 @@ class LevyGAN:
                 np.genfromtxt(f"samples/fixed_samples_2-dim{i + 1}.csv", dtype=float, delimiter=',') for i in
                 range(self.num_tests_for2d)]
 
+        self.reset_test_results()
+
+        self.do_timeing = cf['do timeing']
+        self.start_time = timeit.default_timer()
+
+    def reset_test_results(self):
         self.test_results = {
             'errors': [],
             'chen errors': [],
             'joint wass error': -1.0,
             'st dev error': -1.0,
             'loss d': 0.0,
-            'gradient norm': 0.0
+            'gradient norm': 0.0,
+            'min sum': float('inf'),
+            'min chen sum': float('inf'),
+            'best score': float('inf')
         }
-
-        self.do_timeing = cf['do timeing']
-        self.start_time = timeit.default_timer()
 
     def _gradient_penalty(self, real_data, generated_data, gp_weight):
         b_size_gp = real_data.shape[0]
@@ -281,8 +288,7 @@ class LevyGAN:
         self.print_time("RUNNING netG FOR REPORT")
 
         if comp_grad_norm:
-            pruning_indices = self.pruning_indices_for_testing
-            pruned_fake_data = fake_data[pruning_indices]
+            pruned_fake_data = fake_data[:actual_bsz]
             gradient_penalty, gradient_norm = self._gradient_penalty(unfixed_data, pruned_fake_data, gp_weight=0)
             self.test_results['gradient norm'] = gradient_norm
 
@@ -323,21 +329,22 @@ class LevyGAN:
         self.test_results['chen errors'] = chen_errors
         self.test_results['joint wass error'] = joint_wass_error
         self.test_results['st dev error'] = st_dev_err
+        score = self.model_score()
+
+        if score < self.test_results['best score']:
+            self.test_results['best score'] = score
 
     def model_score(self, a: float = 1.0, b: float = 0.2, c: float = 1.0):
-        self.do_tests(comp_joint_err=(c > 0.000001))
         res = 0.0
         res += a * sum(self.test_results['errors'])
         res += b * sum(self.test_results['chen errors'])
-        res += c * self.test_results['joint wass error']
+        res += c * self.a_dim * self.test_results['joint wass error']
+        return res
 
     def compute_objective(self, optimizer, lrG, lrD, num_discr_iters, beta1, beta2, gp_weight, leaky_slope,
-                          tr_conf_in: dict = None):
+                          tr_conf_in: dict = None, trials: int = 5):
         self.leakyReLU_slope = leaky_slope
         cf = self.config()
-        params_d = copy.deepcopy(self.netD.state_dict())
-        self.netD = Discriminator(cf)
-        self.netD.load_state_dict(params_d)
 
         if tr_conf_in is None:
             importlib.reload(configs)
@@ -351,7 +358,24 @@ class LevyGAN:
         tr_conf['beta1'] = beta1
         tr_conf['beta2'] = beta2
         tr_conf['gp_weight'] = gp_weight
-        self.classic_train(tr_conf)
+        tr_conf['compute joint error'] = True
+
+        scores = []
+        for i in range(trials):
+            self.netG = Generator(cf)
+            self.netD = Discriminator(cf)
+            self.reset_test_results()
+            self.classic_train(tr_conf)
+            scores.append(self.test_results['best score'])
+
+        variance = np.var(scores)
+        mean = np.mean(scores)
+        result_dict = {
+            'status': STATUS_OK,
+            'loss': mean,
+            'loss_variance': variance
+        }
+
         return self.model_score()
 
     def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
@@ -462,7 +486,7 @@ class LevyGAN:
             print(f"{description} TIME: {elapsed}")
             self.start_time = timeit.default_timer()
 
-    def classic_train(self, tr_conf_in: dict = None):
+    def classic_train(self, tr_conf_in: dict = None, save_models = True):
         if tr_conf_in is None:
             importlib.reload(configs)
             tr_conf = configs.training_config
@@ -555,8 +579,7 @@ class LevyGAN:
                 self.test_results['loss d'] = loss_d.item()
 
                 if self.Lipschitz_mode == 'gp':
-                    pruning_indices = torch.randperm(actual_bsz * self.s_dim)[:actual_bsz]
-                    pruned_fake_data = fake_data_detached[pruning_indices]
+                    pruned_fake_data = fake_data_detached[:actual_bsz]
                     gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data,
                                                                              gp_weight=gp_weight)
                     self.test_results['gradient norm'] = gradient_norm
@@ -598,14 +621,16 @@ class LevyGAN:
                     error_sum = sum(errors)
                     if error_sum <= self.test_results['min sum']:
                         self.test_results['min sum'] = error_sum
-                        self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}_min_sum")
-                        print("Saved parameters (fixed error)")
+                        if save_models:
+                            self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}_min_sum")
+                        print("Min fixed sum")
 
                     chen_err_sum = sum(chen_errors)
                     if chen_err_sum < self.test_results['min chen sum']:
                         self.test_results['min chen sum'] = chen_err_sum
-                        self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}min_chen")
-                        print("Saved parameters (chen errors)")
+                        if save_models:
+                            self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}min_chen")
+                        print("Min Chen sum")
 
                     self.print_time(description="SAVING DICTS")
                     self.do_timeing = False

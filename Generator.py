@@ -24,7 +24,7 @@ class Generator(nn.Module):
         assert h_in.shape == (_bsz, self.w_dim)
         _H = torch.mul(self.S, h_in.view(_bsz, 1, self.w_dim))
         _WT = torch.tensordot(w_in, self.T, dims=1)
-        _WTH = torch.flatten(torch.matmul(_H, _WT).permute(1, 0, 2), start_dim=0, end_dim=1)
+        _WTH = torch.flatten(torch.matmul(_H, _WT), start_dim=0, end_dim=1)
         return _WTH
 
     def compute_wthmb(self, wth_in: torch.Tensor, b_in: torch.Tensor):
@@ -32,7 +32,7 @@ class Generator(nn.Module):
         assert wth_in.shape == (_bsz * (2 ** self.w_dim), self.a_dim)
         assert b_in.shape == (_bsz, self.a_dim)
         _B = b_in.view(1, _bsz, self.a_dim)
-        _MB = torch.flatten(torch.mul(self.M, _B), start_dim=0, end_dim=1)
+        _MB = torch.flatten(torch.mul(self.M, _B).permute(1, 0, 2), start_dim=0, end_dim=1)
         return wth_in + _MB
 
     def forward(self, input):
