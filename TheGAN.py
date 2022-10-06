@@ -605,7 +605,8 @@ class LevyGAN:
 
         iters = 0
         for epoch in range(self.num_epochs):
-
+            if not self.print_reports:
+                print(f"{epoch}", end="  ")
             for i, data in enumerate(whole_training_data):
                 if iters >= max_iters:
                     break
@@ -669,8 +670,6 @@ class LevyGAN:
                     if self.print_reports:
                         report = self.make_report(epoch=epoch, iters=iters)
                         print(report)
-                    else:
-                        print(".", end="")
                     self.print_time(description="AFTER REPORT")
                     errors = self.test_results['errors']
                     wass_errors_through_training.append(errors)

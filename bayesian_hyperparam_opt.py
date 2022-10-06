@@ -4,15 +4,15 @@ from TheGAN import LevyGAN
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 
 config = {
-    'w dim': 3,
+    'w dim': 4,
     'noise size': 62,
-    'which generator': 3,
-    'which discriminator': 3,
+    'which generator': 4,
+    'which discriminator': 4,
     'generator symmetry mode': 'Hsym',
     'leakyReLU slope': 0.2,
-    'test bsz': 4096,
-    'unfixed test bsz': 4096,
-    'joint wass dist bsz': 4096,
+    'test bsz': 16384,
+    'unfixed test bsz': 16384,
+    'joint wass dist bsz': 8192,
     'num tests for 2d': 8,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
     'should draw graphs': False,
@@ -20,8 +20,8 @@ config = {
 }
 
 training_config = {
-    'num epochs': 1,
-    'max iters': 120,
+    'num epochs': 10,
+    'max iters': None,
     'optimizer': 'Adam',
     'lrG': 0.00005,
     'lrD': 0.0001,
@@ -51,10 +51,10 @@ def objective(x):
         b1 = opt[1]
         b2 = opt[2]
         # print(f'\n\n!!!!!!!!!!!!!!\nAdam, {b1}, {b2}, {lrG}, {lrD}, {numDiters}, {gpw}, {leaky_slp}\n!!!!!!!!\n\n')
-        return levG.compute_objective('Adam', lrG, lrD, numDiters, b1, b2, gpw, leaky_slp, training_config, trials=1)
+        return levG.compute_objective('Adam', lrG, lrD, numDiters, b1, b2, gpw, leaky_slp, training_config, trials=5)
     else:
         # print(f'\n\n!!!!!!!!!!!!\nRMSProp, {lrG}, {lrD}, {numDiters}, {gpw}, {leaky_slp}\n!!!!!!!!\n\n')
-        return levG.compute_objective('RMSProp', lrG, lrD, numDiters, 0, 0, gpw, leaky_slp, training_config, trials=1)
+        return levG.compute_objective('RMSProp', lrG, lrD, numDiters, 0, 0, gpw, leaky_slp, training_config, trials=5)
 
 
 trials = Trials()
@@ -70,7 +70,7 @@ space = [
 best = fmin(objective,
             space=space,
             algo=tpe.suggest,
-            max_evals=10,
+            max_evals=300,
             trials=trials)
 
 print(best)
