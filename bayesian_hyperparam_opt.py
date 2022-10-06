@@ -4,7 +4,7 @@ from TheGAN import LevyGAN
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 
 config = {
-    'w dim': 4,
+    'w dim': 3,
     'noise size': 62,
     'which generator': 4,
     'which discriminator': 4,
@@ -20,7 +20,7 @@ config = {
 }
 
 training_config = {
-    'num epochs': 10,
+    'num epochs': 15,
     'max iters': None,
     'optimizer': 'Adam',
     'lrG': 0.00005,
@@ -32,7 +32,7 @@ training_config = {
     'weight clipping limit': 0.01,
     'gp weight': 20.0,
     'bsz': 1024,
-    'compute joint error': False,
+    'compute joint error': True,
     'print reports': False,
     'descriptor': ''
 }

@@ -371,7 +371,7 @@ class LevyGAN:
         if joint_wass_error < self.test_results['best joint error']:
             self.test_results['best joint error'] = make_pretty(joint_wass_error)
 
-    def model_score(self, a: float = 1.0, b: float = 0.2, c: float = 1.0):
+    def model_score(self, a: float = 1.0, b: float = 0.5, c: float = 1.0):
         res = 0.0
         res += a * sum(self.test_results['errors'])
         res += b * sum(self.test_results['chen errors'])
@@ -417,7 +417,7 @@ class LevyGAN:
             attachments[f'trial {i} best score'] = self.test_results['best score']
             attachments[f'trial {i} best score report'] = self.test_results['best score report']
 
-        variance = np.var(scores)
+        variance = 2 * np.var(scores)
         if len(scores) == 1:
             variance = 0.5
         mean = np.mean(scores)
