@@ -43,6 +43,7 @@ config = {
     'joint wass dist bsz': 8192,
     'num tests for 2d': 8,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
+    'should draw graphs': False,
     'do timeing': True
 }
 

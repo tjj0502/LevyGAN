@@ -147,6 +147,18 @@ class LevyGAN:
 
         self.do_timeing = cf['do timeing']
         self.start_time = timeit.default_timer()
+        if cf['should draw graphs'] is None:
+            self.should_draw_graphs = True
+        else:
+            self.should_draw_graphs = cf['should draw graphs']
+        self.print_reports = True
+        if 'print reports' in cf:
+            self.print_reports = cf['print reports']
+        self.should_draw_graphs = True
+        if 'should draw graphs' in cf:
+            self.should_draw_graphs = cf['should draw graphs']
+
+
 
     def config(self):
         cf = {
@@ -381,7 +393,12 @@ class LevyGAN:
         scores = []
         attacments = {}
         for i in range(trials):
-            tr_conf['descriptor'] = f"COMP_OBJ_opt{optimizer}_lrG{lrG}_lrD{lrD}_numDitr{num_discr_iters}_b1_{beta1}_b2_{beta2}_gp{gp_weight}_lkslp{leaky_slope}_trial{i}"
+            if optimizer == 'Adam':
+                descr = f"COMP_OBJ_Adam_b1_{beta1:.3f}_b2_{beta2:.4f}_lrG{lrG:.6f}_lrD{lrD:.6f}_numDitr{num_discr_iters}_gp{gp_weight:.0f}_lkslp{leaky_slope:.3f}_trial{i}"
+            else:
+                descr = f"COMP_OBJ_RMSProp_lrG{lrG:.6f}_lrD{lrD:.6f}_numDitr{num_discr_iters}_gp{gp_weight:.0f}_lkslp{leaky_slope:.3f}_trial{i}"
+            tr_conf['descriptor'] = descr
+            print(descr, end="")
             self.netG = Generator(cf)
             self.netD = Discriminator(cf)
             self.reset_test_results()
@@ -394,6 +411,8 @@ class LevyGAN:
             attacments[f'trial {i} best score report'] = self.test_results['best score report']
 
         variance = np.var(scores)
+        if len(scores) == 1:
+            variance = 0.5
         mean = np.mean(scores)
         result_dict = {
             'status': STATUS_OK,
@@ -436,6 +455,9 @@ class LevyGAN:
 
     def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training,
                           joint_errors_through_training=None, descriptor: str = ''):
+        if not self.should_draw_graphs:
+            return
+
         if not (joint_errors_through_training is None):
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(30, 15))
             ax3.set_title("Joint 2-Wasserstein errors")
@@ -563,6 +585,12 @@ class LevyGAN:
 
         descriptor = tr_conf['descriptor']
 
+        if 'print reports' in tr_conf:
+            self.print_reports = tr_conf['print reports']
+
+        if 'should draw graphs' in tr_conf:
+            self.should_draw_graphs = tr_conf['should draw graphs']
+
         filename = f"samples/samples_{self.w_dim}-dim.csv"
         whole_training_data = self.samples_torch.split(bsz)
 
@@ -638,8 +666,11 @@ class LevyGAN:
                     self.print_time(description="BEFORE TESTS")
                     self.do_tests(comp_joint_err=compute_joint_error)
                     self.print_time(description="AFTER TESTS")
-                    report = self.make_report(epoch=epoch, iters=iters)
-                    print(report)
+                    if self.print_reports:
+                        report = self.make_report(epoch=epoch, iters=iters)
+                        print(report)
+                    else:
+                        print(".", end="")
                     self.print_time(description="AFTER REPORT")
                     errors = self.test_results['errors']
                     wass_errors_through_training.append(errors)
@@ -654,14 +685,16 @@ class LevyGAN:
                         self.test_results['min sum'] = error_sum
                         if save_models:
                             self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}_min_sum")
-                        print("Min fixed sum")
+                        if self.print_reports:
+                            print("Min fixed sum")
 
                     chen_err_sum = sum(chen_errors)
                     if chen_err_sum <= self.test_results['min chen sum']:
                         self.test_results['min chen sum'] = chen_err_sum
                         if save_models:
                             self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}min_chen")
-                        print("Min Chen sum")
+                        if self.print_reports:
+                            print("Min Chen sum")
 
                     self.print_time(description="SAVING DICTS")
                     self.do_timeing = False
@@ -669,6 +702,7 @@ class LevyGAN:
 
         self.draw_error_graphs(wass_errors_through_training, chen_errors_through_training,
                                joint_errors_through_training=joint_errors_through_training, descriptor=descriptor)
+        print("")
 
     # def chen_train(self, tr_conf: dict):
     #     print("blub")
