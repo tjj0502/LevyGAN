@@ -38,6 +38,7 @@ training_config = {
 }
 
 levG = LevyGAN(config)
+serial_num = levG.serial_number
 
 
 def objective(x):
@@ -51,10 +52,10 @@ def objective(x):
         b1 = opt[1]
         b2 = opt[2]
         # print(f'\n\n!!!!!!!!!!!!!!\nAdam, {b1}, {b2}, {lrG}, {lrD}, {numDiters}, {gpw}, {leaky_slp}\n!!!!!!!!\n\n')
-        return levG.compute_objective('Adam', lrG, lrD, numDiters, b1, b2, gpw, leaky_slp, training_config, trials=5)
+        return levG.compute_objective('Adam', lrG, lrD, numDiters, b1, b2, gpw, leaky_slp, training_config, trials=3)
     else:
         # print(f'\n\n!!!!!!!!!!!!\nRMSProp, {lrG}, {lrD}, {numDiters}, {gpw}, {leaky_slp}\n!!!!!!!!\n\n')
-        return levG.compute_objective('RMSProp', lrG, lrD, numDiters, 0, 0, gpw, leaky_slp, training_config, trials=5)
+        return levG.compute_objective('RMSProp', lrG, lrD, numDiters, 0, 0, gpw, leaky_slp, training_config, trials=3)
 
 
 trials = Trials()
@@ -70,7 +71,14 @@ space = [
 best = fmin(objective,
             space=space,
             algo=tpe.suggest,
-            max_evals=300,
+            max_evals=600,
             trials=trials)
 
-print(best)
+with open(f"model_saves/{levG.dict_saves_folder}/trials_output_num{levG.serial_number}.pt", 'w+b') as file:
+    pickle.dump(trials.trials, file)
+
+filename = f"model_saves/{levG.dict_saves_folder}/best_hyperparams.txt"
+summary = f"{levG.serial_number}: {best} \n"
+
+with open(filename, 'a+') as file:
+    file.write(f"{levG.serial_number}: {best} \n")

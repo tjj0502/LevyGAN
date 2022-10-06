@@ -147,10 +147,6 @@ class LevyGAN:
 
         self.do_timeing = cf['do timeing']
         self.start_time = timeit.default_timer()
-        if cf['should draw graphs'] is None:
-            self.should_draw_graphs = True
-        else:
-            self.should_draw_graphs = cf['should draw graphs']
         self.print_reports = True
         if 'print reports' in cf:
             self.print_reports = cf['print reports']
@@ -391,7 +387,7 @@ class LevyGAN:
         tr_conf['compute joint error'] = True
 
         scores = []
-        attacments = {}
+        attachments = {}
         for i in range(trials):
             if optimizer == 'Adam':
                 descr = f"COMP_OBJ_Adam_b1_{beta1:.3f}_b2_{beta2:.4f}_lrG{lrG:.6f}_lrD{lrD:.6f}_numDitr{num_discr_iters}_gp{gp_weight:.0f}_lkslp{leaky_slope:.3f}_trial{i}"
@@ -404,11 +400,11 @@ class LevyGAN:
             self.reset_test_results()
             self.classic_train(tr_conf, save_models=False)
             scores.append(self.test_results['best score'])
-            attacments[f'trial {i} best joint error'] = self.test_results['best joint error']
-            attacments[f'trial {i} best fixed errors'] = self.test_results['best fixed errors']
-            attacments[f'trial {i} best chen errors'] = self.test_results['best chen errors']
-            attacments[f'trial {i} best score'] = self.test_results['best score']
-            attacments[f'trial {i} best score report'] = self.test_results['best score report']
+            attachments[f'trial {i} best joint error'] = self.test_results['best joint error']
+            attachments[f'trial {i} best fixed errors'] = self.test_results['best fixed errors']
+            attachments[f'trial {i} best chen errors'] = self.test_results['best chen errors']
+            attachments[f'trial {i} best score'] = self.test_results['best score']
+            attachments[f'trial {i} best score report'] = self.test_results['best score report']
 
         variance = np.var(scores)
         if len(scores) == 1:
@@ -418,7 +414,7 @@ class LevyGAN:
             'status': STATUS_OK,
             'loss': mean,
             'loss_variance': variance,
-            'attachments': attacments
+            'other stuff': attachments
         }
 
         return result_dict
@@ -543,9 +539,8 @@ class LevyGAN:
 
         # Number of training epochs using classical training
         self.num_epochs = tr_conf['num epochs']
-        if tr_conf['max iters'] is None:
-            max_iters = int('inf')
-        else:
+        max_iters = float('inf')
+        if 'max iters' in tr_conf and isinstance(tr_conf['max iters'], int):
             max_iters = tr_conf['max iters']
 
         # 'Adam' of 'RMSProp'
