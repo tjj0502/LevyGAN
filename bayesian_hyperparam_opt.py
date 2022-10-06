@@ -12,7 +12,7 @@ config = {
     'leakyReLU slope': 0.2,
     'test bsz': 16384,
     'unfixed test bsz': 16384,
-    'joint wass dist bsz': 8192,
+    'joint wass dist bsz': 16384,
     'num tests for 2d': 8,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
     'should draw graphs': False,
@@ -32,7 +32,7 @@ training_config = {
     'weight clipping limit': 0.01,
     'gp weight': 20.0,
     'bsz': 1024,
-    'compute joint error': True,
+    'compute joint error': False,
     'print reports': False,
     'descriptor': ''
 }
@@ -61,8 +61,8 @@ def objective(x):
 trials = Trials()
 space = [
     hp.choice('opt', [('Adam', hp.uniform('b1', 0.0, 1.0), 1 - hp.loguniform('b2', -9, -3)), ('RMSProp')]),
-    hp.loguniform('lrG', -14, -9),
-    hp.loguniform('lrD', -14, -9),
+    hp.loguniform('lrG', -15, -9),
+    hp.loguniform('lrD', -15, -9),
     1 + hp.quniform('numDiters', 2, 10, 2),
     hp. uniform('gpw', 3, 50,),
     hp.loguniform('leaky_slp', -4, -1)
