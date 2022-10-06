@@ -133,12 +133,16 @@ class LevyGAN:
             'errors': [],
             'chen errors': [],
             'joint wass error': -1.0,
+            'best joint error': float('inf'),
             'st dev error': -1.0,
             'loss d': 0.0,
             'gradient norm': 0.0,
             'min sum': float('inf'),
+            'best fixed errors': [],
             'min chen sum': float('inf'),
-            'best score': float('inf')
+            'best chen errors': [],
+            'best score': float('inf'),
+            'best score report': ''
         }
 
         self.do_timeing = cf['do timeing']
@@ -204,12 +208,16 @@ class LevyGAN:
             'errors': [],
             'chen errors': [],
             'joint wass error': -1.0,
+            'best joint error': float('inf'),
             'st dev error': -1.0,
             'loss d': 0.0,
             'gradient norm': 0.0,
             'min sum': float('inf'),
+            'best fixed errors': [],
             'min chen sum': float('inf'),
-            'best score': float('inf')
+            'best chen errors': [],
+            'best score': float('inf'),
+            'best score report': ''
         }
 
     def _gradient_penalty(self, real_data, generated_data, gp_weight):
@@ -304,8 +312,8 @@ class LevyGAN:
 
         chen_errors = chen_error_3step(fake_data, self.w_dim)
         self.print_time("CHEN ERRORS")
-        joint_wass_error = -1.0
-        st_dev_err = -1.0
+        joint_wass_error = float('inf')
+        st_dev_err = float('inf')
         # Test Wasserstein error for fixed W
         if self.w_dim > 2:
             noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
@@ -333,6 +341,16 @@ class LevyGAN:
 
         if score < self.test_results['best score']:
             self.test_results['best score'] = score
+            self.test_results['best score report'] = self.make_report(add_line_break=False)
+        if sum(errors) < self.test_results['min sum']:
+            self.test_results['min sum'] = sum(errors)
+            self.test_results['best fixed errors'] = errors
+        if sum(chen_errors) < self.test_results['min chen sum']:
+            self.test_results['min chen sum'] = sum(chen_errors)
+            self.test_results['best chen errors'] = chen_errors
+        if joint_wass_error < self.test_results['best joint error']:
+            self.test_results['best joint error'] = joint_wass_error
+
 
     def model_score(self, a: float = 1.0, b: float = 0.2, c: float = 1.0):
         res = 0.0
@@ -361,22 +379,29 @@ class LevyGAN:
         tr_conf['compute joint error'] = True
 
         scores = []
+        attacments = {}
         for i in range(trials):
             self.netG = Generator(cf)
             self.netD = Discriminator(cf)
             self.reset_test_results()
-            self.classic_train(tr_conf)
+            self.classic_train(tr_conf, save_models=False)
             scores.append(self.test_results['best score'])
+            attacments[f'trial {i} best joint error'] = self.test_results['best joint error']
+            attacments[f'trial {i} best fixed errors'] = self.test_results['best fixed errors']
+            attacments[f'trial {i} best chen errors'] = self.test_results['best chen errors']
+            attacments[f'trial {i} best score'] = self.test_results['best score']
+            attacments[f'trial {i} best score report'] = self.test_results['best score report']
 
         variance = np.var(scores)
         mean = np.mean(scores)
         result_dict = {
             'status': STATUS_OK,
             'loss': mean,
-            'loss_variance': variance
+            'loss_variance': variance,
+            'attachments' : attacments
         }
 
-        return self.model_score()
+        return result_dict
 
     def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
         report = ""
@@ -395,10 +420,10 @@ class LevyGAN:
         report += f"discr grad norm: {grad_norm:.5f}, "
         report += f"discr loss: {self.test_results['loss d']:.5f}"
         joint_wass_error = self.test_results['joint wass error']
-        if joint_wass_error >= 0:
+        if joint_wass_error < 100:
             report += f", joint err: {joint_wass_error:.5f}"
         st_dev_error = self.test_results['st dev error']
-        if st_dev_error >= 0:
+        if st_dev_error < 100:
             report += f", st dev err: {st_dev_error:.5f}"
         pretty_errors = make_pretty(self.test_results['errors'])
         pretty_chen_errors = make_pretty(self.test_results['chen errors'])
