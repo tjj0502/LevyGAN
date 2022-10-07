@@ -31,7 +31,7 @@ training_config = {
     'Lipschitz mode': 'gp',
     'weight clipping limit': 0.01,
     'gp weight': 20.0,
-    'bsz': 256,
+    'bsz': 1024,
     'compute joint error': True,
     'print reports': False,
     'descriptor': ''
