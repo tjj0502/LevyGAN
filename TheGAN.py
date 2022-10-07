@@ -337,22 +337,30 @@ class LevyGAN:
 
         self.test_results['errors'] = errors
         self.test_results['chen errors'] = chen_errors
-        self.test_results['joint wass error'] = joint_wass_error
+
         self.test_results['st dev error'] = st_dev_err
-        flag = True # just to avoid computing joint error twice
+        flag_for_joint_err = True # just to avoid computing joint error twice
         if sum(errors) < self.test_results['min sum']:
             self.test_results['min sum'] = sum(errors)
             self.test_results['best fixed errors'] = make_pretty(errors)
+
             if self.w_dim > 2 and comp_joint_err:
                 joint_wass_error = joint_wass_dist(self.A_fixed_true[:self.joint_wass_dist_bsz],
                                                    a_fixed_gen[:self.joint_wass_dist_bsz])
-                flag = False
+                self.test_results['joint wass error'] = joint_wass_error
+
         if sum(chen_errors) < self.test_results['min chen sum']:
             self.test_results['min chen sum'] = sum(chen_errors)
             self.test_results['best chen errors'] = make_pretty(chen_errors)
-            if self.w_dim > 2 and comp_joint_err and flag:
+
+            if self.w_dim > 2 and comp_joint_err and flag_for_joint_err:
                 joint_wass_error = joint_wass_dist(self.A_fixed_true[:self.joint_wass_dist_bsz],
                                                    a_fixed_gen[:self.joint_wass_dist_bsz])
+                self.test_results['joint wass error'] = joint_wass_error
+
+
+        if joint_wass_error < self.test_results['best joint error']:
+            self.test_results['best joint error'] = make_pretty(joint_wass_error)
 
         if self.w_dim > 2 and comp_joint_err:
             score = self.model_score()
@@ -362,20 +370,15 @@ class LevyGAN:
         if score < self.test_results['best score']:
             self.test_results['best score'] = make_pretty(score)
             self.test_results['best score report'] = self.make_report(add_line_break=False)
-        if sum(errors) < self.test_results['min sum']:
-            self.test_results['min sum'] = sum(errors)
-            self.test_results['best fixed errors'] = make_pretty(errors)
-        if sum(chen_errors) < self.test_results['min chen sum']:
-            self.test_results['min chen sum'] = sum(chen_errors)
-            self.test_results['best chen errors'] = make_pretty(chen_errors)
-        if joint_wass_error < self.test_results['best joint error']:
-            self.test_results['best joint error'] = make_pretty(joint_wass_error)
+
+
 
     def model_score(self, a: float = 1.0, b: float = 0.5, c: float = 1.0):
         res = 0.0
         res += a * sum(self.test_results['errors'])
         res += b * sum(self.test_results['chen errors'])
-        res += c * self.a_dim * self.test_results['joint wass error']
+        if c > 0.0:
+            res += c * self.a_dim * self.test_results['joint wass error']
         return res
 
     def compute_objective(self, optimizer, lrG, lrD, num_discr_iters, beta1, beta2, gp_weight, leaky_slope,
@@ -542,6 +545,7 @@ class LevyGAN:
             self.start_time = timeit.default_timer()
 
     def classic_train(self, tr_conf_in: dict = None, save_models=True):
+        self.print_time("START TRAIN")
         if tr_conf_in is None:
             importlib.reload(configs)
             tr_conf = configs.training_config

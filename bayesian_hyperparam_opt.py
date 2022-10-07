@@ -20,8 +20,8 @@ config = {
 }
 
 training_config = {
-    'num epochs': 15,
-    'max iters': None,
+    'num epochs': 10,
+    'max iters': 62,
     'optimizer': 'Adam',
     'lrG': 0.00005,
     'lrD': 0.0001,
@@ -31,7 +31,7 @@ training_config = {
     'Lipschitz mode': 'gp',
     'weight clipping limit': 0.01,
     'gp weight': 20.0,
-    'bsz': 1024,
+    'bsz': 256,
     'compute joint error': True,
     'print reports': False,
     'descriptor': ''
@@ -71,7 +71,7 @@ space = [
 best = fmin(objective,
             space=space,
             algo=tpe.suggest,
-            max_evals=600,
+            max_evals=10,
             trials=trials)
 
 with open(f"model_saves/{levG.dict_saves_folder}/trials_output_num{levG.serial_number}.pt", 'w+b') as file:
