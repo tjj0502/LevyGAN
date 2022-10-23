@@ -373,10 +373,11 @@ class LevyGAN:
 
 
 
-    def model_score(self, a: float = 1.0, b: float = 0.5, c: float = 1.0):
+    def model_score(self, a: float = 1.0, b: float = 0.0, c: float = 1.0):
         res = 0.0
         res += a * sum(self.test_results['errors'])
-        res += b * sum(self.test_results['chen errors'])
+        if b > 0.0:
+            res += b * sum(self.test_results['chen errors'])
         if c > 0.0:
             res += c * self.a_dim * self.test_results['joint wass error']
         return res
@@ -398,7 +399,6 @@ class LevyGAN:
         tr_conf['beta1'] = beta1
         tr_conf['beta2'] = beta2
         tr_conf['gp_weight'] = gp_weight
-        tr_conf['compute joint error'] = True
 
         scores = []
         attachments = {}
@@ -422,7 +422,7 @@ class LevyGAN:
 
         variance = 2 * np.var(scores)
         if len(scores) == 1:
-            variance = 0.5
+            variance = 0.3
         mean = np.mean(scores)
         result_dict = {
             'status': STATUS_OK,
@@ -469,13 +469,13 @@ class LevyGAN:
             return
 
         if not (joint_errors_through_training is None):
-            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(30, 15))
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(40, 15))
             ax3.set_title("Joint 2-Wasserstein errors")
             ax3.plot(joint_errors_through_training)
             ax3.set_ylim([-0.01, 0.8])
             ax3.set_xlabel("iterations")
         else:
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 15))
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(25, 15))
         labels = list_pairs(self.w_dim)
         ax1.set_title("Individual 2-Wasserstein errors")
         ax1.plot(wass_errors_through_training, label=labels)
@@ -673,7 +673,7 @@ class LevyGAN:
                     opt_g.step()
                     self.print_time(description="OPT G")
 
-                if iters % 200 == 0:
+                if iters % 100 == 0:
                     self.print_time(description="BEFORE TESTS")
                     self.do_tests(comp_joint_err=compute_joint_error)
                     self.print_time(description="AFTER TESTS")
@@ -709,9 +709,10 @@ class LevyGAN:
                     self.do_timeing = False
                 iters += 1
 
+        best_score = self.test_results['best score']
         self.draw_error_graphs(wass_errors_through_training, chen_errors_through_training,
-                               joint_errors_through_training=joint_errors_through_training, descriptor=descriptor)
-        print("")
+                               joint_errors_through_training=joint_errors_through_training,
+                               descriptor=f"{descriptor}_score_{best_score}")
 
     # def chen_train(self, tr_conf: dict):
     #     print("blub")
