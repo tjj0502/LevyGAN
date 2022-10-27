@@ -150,8 +150,11 @@ def w_indices(a_i: int, _w_dim: int):
                 idx += 1
 
 
-def list_pairs(_w_dim: int):
+def list_pairs(_w_dim: int, _w = None):
     fixed_w_list = [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7]
+    if not (_w is None):
+        fixed_w_list = list(_w)
+        assert (len(fixed_w_list) == _w_dim)
     lst = []
     for k in range(_w_dim):
         for l in range(k + 1, _w_dim):
