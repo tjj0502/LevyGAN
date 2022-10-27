@@ -103,6 +103,8 @@ class LevyGAN:
 
         # ============ Testing config ============
         self.num_tests_for_lowdim = cf['num tests for 2d']
+        if self.w_dim == 3 and self.num_tests_for_lowdim > 7:
+            self.num_tests_for_lowdim = 7
 
         self.test_bsz = cf['test bsz']
         self.unfixed_test_bsz = cf['unfixed test bsz']
