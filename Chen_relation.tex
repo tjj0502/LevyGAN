@@ -1,10 +1,493 @@
-\documentclass[a4paper,12pt]{article}
+\documentclass[a4paper,11pt]{article}
+
+\newif\iflecnotes
+\lecnotesfalse
+\newif\ifsol
+\solfalse
+
+%% LATEX PREAMBLE
+
+%%\newif\iflecnotes
+%% Mathematic Packages
+\usepackage{amsmath,amsfonts, amssymb, amsthm}
+\usepackage{commath}
+\usepackage{dsfont} % required for indicator
+\usepackage{bm} % for bold symbols
+\usepackage{mathtools}
+%\usepackage{amssymb}
+%\usepackage{amsthm}
+
+%% Algorithms
+\usepackage{algorithm}
+%\usepackage{algorithmic}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+
+
+%% Graphics
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usetikzlibrary{arrows.meta}	
+\usetikzlibrary{backgrounds}
+\usetikzlibrary{calc}	
+\usetikzlibrary{patterns}
+\usetikzlibrary{positioning}	
+\usetikzlibrary{shapes}
+\usepgfplotslibrary{fillbetween}
+
+%% Footnote
+\usepackage{footmisc} % same footnote may times
+
+%% Links
+%\usepackage{hyperref}
+
+%% Code
+% \usepackage{listings}
+% \lstset{
+%          basicstyle=\small\ttfamily, 
+%          %numbers=left,               % linenumbers
+%          numberstyle=\tiny,
+%          %stepnumber=2,
+%          numbersep=5pt,              % between number and text
+%          tabsize=2,                  
+%          extendedchars=true,         
+%          breaklines=true,            
+%          keywordstyle=\color{black},
+%          frame=single,         
+%          % fillcolor=\color{shadecolor},
+%          rulecolor=\color{black},
+%          % backgroundcolor=\color{shadecolor},
+%          stringstyle=\color{black}\ttfamily, % string literals
+%          showspaces=false,           % spaces shown?
+%          showtabs=false,             % tabs shown?
+%          xleftmargin=4pt,
+%          framexleftmargin=4pt,
+%          framexrightmargin=5pt,
+%          framexbottommargin=3pt,
+%          showstringspaces=false
+% }
+% \lstloadlanguages{% see docs
+%          %C
+%          %C++
+% }
+
+%% Formatting
+\usepackage{fancyhdr}
+\iflecnotes
+\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
+\else
+\usepackage[top=2in, bottom=1.5in, left=1in, right=1in]{geometry}
+\fi
+\usepackage{xspace}
+\usepackage{enumitem} % Good enum and item 
+\usepackage{parskip} % Useful for having no parindent
+
+%% Bibliography
+\usepackage{url}
+\usepackage[round]{natbib}
+
+%% Colors
+\usepackage{color}
+\usepackage{xcolor}
+
+% \usepackage{moreverb}  
+% \usepackage{fancyvrb}
+% \usepackage{framed}
+% \usepackage{rotating}
+% \usepackage{floatpag}
+% \rotfloatpagestyle{empty}
+
+%% Theorems
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{definition}[theorem]{Definition}
+
+%% LATEX MACROS
+
+%% Colors
+\definecolor{LightBlue}{rgb}{0.6,0.6,1.}
+\definecolor{VeryLightBlue}{rgb}{0.8,0.8,1.}
+\definecolor{Salmon}{rgb}{1.,.57,.64}
+\definecolor{Olive}{rgb}{0.3,0.4,0.1}
+\definecolor{DarkRed}{rgb}{0.7,0,0}
+\definecolor{DarkGreen}{rgb}{0.2,0.6,0.2}
+\definecolor{DarkBlue}{rgb}{0,0,0.7}
+\definecolor{LightCyan}{rgb}{0.88,1,1}
+\definecolor{DarkCyan}{rgb}{0.68,0.8,0.8}
+
+\definecolor{lightgrey}{rgb}{0.8,0.8,0.8}
+\definecolor{lightergrey}{rgb}{0.9,0.9,0.9}
+\definecolor{verylightgrey}{rgb}{0.95,0.95,0.95}
+
+%% Latin
+\newcommand{\eg}{\textit{e.g.,}\xspace}
+\newcommand{\ie}{\textit{i.e.,}\xspace}
+\newcommand{\viz}{\textit{viz.}\xspace}
+\newcommand{\etc}{\textit{etc.}\xspace}
+\newcommand{\etal}{\textit{et al.}\xspace}
+
+%% English
+\renewcommand{\th}{^{\textit{\footnotesize{th}}}}
+
+%% Parantheses
+%%
+\newcommand{\lbracket}{[}
+\newcommand{\rbracket}{]}
+
+%% MATHEMATICS
+%% Bars, Hats, Tildes
+\renewcommand{\bar}{\widebar}
+\renewcommand{\hat}{\widehat}
+\renewcommand{\tilde}{\widetilde}
+%% A lot of effort to make \widebar
+%% Code copied from http://tex.stackexchange.com/questions/16337/can-i-get-a-widebar-without-using-the-mathabx-package/60253#60253
+\makeatletter
+\let\save@mathaccent\mathaccent
+\newcommand*\if@single[3]{%
+  \setbox0\hbox{${\mathaccent"0362{#1}}^H$}%
+  \setbox2\hbox{${\mathaccent"0362{\kern0pt#1}}^H$}%
+  \ifdim\ht0=\ht2 #3\else #2\fi
+  }
+%The bar will be moved to the right by a half of \macc@kerna, which is computed by amsmath:
+\newcommand*\rel@kern[1]{\kern#1\dimexpr\macc@kerna}
+%If there's a superscript following the bar, then no negative kern may follow the bar;
+%an additional {} makes sure that the superscript is high enough in this case:
+\newcommand*\widebar[1]{\@ifnextchar^{{\wide@bar{#1}{0}}}{\wide@bar{#1}{1}}}
+%Use a separate algorithm for single symbols:
+\newcommand*\wide@bar[2]{\if@single{#1}{\wide@bar@{#1}{#2}{1}}{\wide@bar@{#1}{#2}{2}}}
+\newcommand*\wide@bar@[3]{%
+  \begingroup
+  \def\mathaccent##1##2{%
+%Enable nesting of accents:
+    \let\mathaccent\save@mathaccent
+%If there's more than a single symbol, use the first character instead (see below):
+    \if#32 \let\macc@nucleus\first@char \fi
+%Determine the italic correction:
+    \setbox\z@\hbox{$\macc@style{\macc@nucleus}_{}$}%
+    \setbox\tw@\hbox{$\macc@style{\macc@nucleus}{}_{}$}%
+    \dimen@\wd\tw@
+    \advance\dimen@-\wd\z@
+%Now \dimen@ is the italic correction of the symbol.
+    \divide\dimen@ 3
+    \@tempdima\wd\tw@
+    \advance\@tempdima-\scriptspace
+%Now \@tempdima is the width of the symbol.
+    \divide\@tempdima 10
+    \advance\dimen@-\@tempdima
+%Now \dimen@ = (italic correction / 3) - (Breite / 10)
+    \ifdim\dimen@>\z@ \dimen@0pt\fi
+%The bar will be shortened in the case \dimen@<0 !
+    \rel@kern{0.6}\kern-\dimen@
+    \if#31
+      \overline{\rel@kern{-0.6}\kern\dimen@\macc@nucleus\rel@kern{0.4}\kern\dimen@}%
+      \advance\dimen@0.4\dimexpr\macc@kerna
+%Place the combined final kern (-\dimen@) if it is >0 or if a superscript follows:
+      \let\final@kern#2%
+      \ifdim\dimen@<\z@ \let\final@kern1\fi
+      \if\final@kern1 \kern-\dimen@\fi
+    \else
+      \overline{\rel@kern{-0.6}\kern\dimen@#1}%
+    \fi
+  }%
+  \macc@depth\@ne
+  \let\math@bgroup\@empty \let\math@egroup\macc@set@skewchar
+  \mathsurround\z@ \frozen@everymath{\mathgroup\macc@group\relax}%
+  \macc@set@skewchar\relax
+  \let\mathaccentV\macc@nested@a
+%The following initialises \macc@kerna and calls \mathaccent:
+  \if#31
+    \macc@nested@a\relax111{#1}%
+  \else
+%If the argument consists of more than one symbol, and if the first token is
+%a letter, use that letter for the computations:
+    \def\gobble@till@marker##1\endmarker{}%
+    \futurelet\first@char\gobble@till@marker#1\endmarker
+    \ifcat\noexpand\first@char A\else
+      \def\first@char{}%
+    \fi
+    \macc@nested@a\relax111{\first@char}%
+  \fi
+  \endgroup
+}
+\makeatother
+%%%%
+%% Probability
+\makeatletter
+\renewcommand{\P}{%
+	\@ifnextchar\bgroup%
+	{\@Pwithargs}
+	{\@Pnoargs}
+}
+\newcommand{\@Pwithargs}[1]{%
+	\@ifnextchar\bgroup%
+	{\@Ptwoargs{#1}}
+	{\@Ponearg{#1}}
+}
+\newcommand{\@Pnoargs}{\mathbb{P}}
+\newcommand{\@Ponearg}[1]{\mathbb{P}\left[ #1 \right]}
+\newcommand{\@Ptwoargs}[2]{\mathbb{P}_{#1}\left[ #2 \right]}
+\newcommand{\E}{%
+	\@ifnextchar\bgroup%
+	{\@Ewithargs}
+	{\@Enoargs}
+}
+\newcommand{\@Ewithargs}[1]{%
+	\@ifnextchar\bgroup%
+	{\@Etwoargs{#1}}
+	{\@Eonearg{#1}}
+}
+\newcommand{\@Enoargs}{\mathbb{E}}
+\newcommand{\@Eonearg}[1]{\mathbb{E}\left[ #1 \right]}
+\newcommand{\@Etwoargs}[2]{\underset{#1}{\mathbb{E}}\left[ #2 \right]}
+\makeatother
+\newcommand{\EE}[1]{\underset{#1}{\mathbb{E}}} %_{#1}}
+\newcommand{\cov}{\mathrm{cov}}
+\newcommand{\corr}{\mathrm{corr}}
+\newcommand{\var}{\mathrm{var}}
+%% Distributions
+\newcommand{\normal}{\mathcal{N}}
+\newcommand{\Bernoulli}{\mathrm{Bernoulli}}
+\newcommand{\Lap}{\mathrm{Lap}}
+%% Calculus
+\newcommand{\grad}{\nabla}
+\newcommand{\jac}{\mathbf{J}}
+%% Operators
+\DeclareMathOperator*{\argmax}{\arg\!\max}
+\DeclareMathOperator*{\argmin}{\arg\!\min}
+
+%% Machine Learning
+\newcommand{\regul}{\mathcal{R}}
+\newcommand{\ML}{\text{\tiny{ML}}}
+\newcommand{\svm}{\text{\tiny{SVM}}}
+\newcommand{\map}{\text{\tiny{map}}}
+\newcommand{\hinge}{\text{\tiny{hinge}}}
+\newcommand{\LS}{\text{\tiny{LS}}}
+\newcommand{\ridge}{\text{\tiny{ridge}}}
+\newcommand{\lasso}{\text{\tiny{lasso}}}
+\newcommand{\nw}{\text{\tiny{new}}}
+\newcommand{\LL}{\mathrm{LL}}
+\newcommand{\NLL}{\mathrm{NLL}}
+\newcommand{\data}{\mathcal{D}}
+\newcommand{\loss}{\mathcal{L}}
+\newcommand{\softmax}{\mathrm{softmax}}
+%% Information Theory
+\newcommand{\KL}{\mathrm{KL}}
+%% Learning Theory
+\newcommand{\Ball}{\mathbb{B}}
+\newcommand{\err}{\mathrm{err}}
+\newcommand{\opt}{\mathsf{opt}}
+\newcommand{\size}{\mathrm{size}}
+\newcommand{\EX}{\mathsf{EX}}
+\newcommand{\MQ}{\mathsf{MQ}}
+\newcommand{\EQ}{\mathsf{EQ}}
+\newcommand{\MQplusEQ}{\mathsf{MQ}+\mathsf{EQ}}
+\newcommand{\STAT}{\mathsf{STAT}}
+\newcommand{\threetermDNF}{3\text{-}\mathsf{TERM}\text{-}\mathsf{DNF}}
+\newcommand{\MONOTONECONJ}{\mathsf{MONOTONE}\text{-}\mathsf{CONJUNCTIONS}}
+\newcommand{\CONJ}{\mathsf{CONJUNCTIONS}}
+\newcommand{\PARITIES}{\mathsf{PARITIES}}
+\newcommand{\MAJORITIES}{\mathsf{MAJORITIES}}
+\newcommand{\DNF}{\mathsf{DNF}}
+\newcommand{\MONOTONEDNF}{\mathsf{MONOTONE}\text{-}\mathsf{DNF}}
+\newcommand{\THRESHOLD}{\mathsf{TH}}
+\newcommand{\threeCNF}{3\text{-}\mathsf{CNF}}
+\newcommand{\VCdim}{\mathsf{VCD}}
+\newcommand{\Rad}{\mathsf{RAD}}
+\newcommand{\TD}{\mathsf{TD}}
+\newcommand{\LTF}{\mathsf{LTF}}
+\newcommand{\WL}{\textsc{WeakLearn}}
+\newcommand{\DL}{\mathsf{DL}}
+\newcommand{\LDL}{\mathsf{1LDL}}
+%% Complexity Theory
+\newcommand{\NP}{\mathsf{NP}}
+\newcommand{\RP}{\mathsf{RP}}
+\newcommand{\threecolour}{3\text{-}\mathsf{COLOURABLE}}
+
+%% Fractions
+\newcommand{\sfrac}[2]{\footnotesize{^{#1}/_{#2}}}
+%% Norms
+\newcommand{\lnorm}[2]{\left\Vert #1 \right\Vert_{#2}}
+\newcommand{\ltwonorm}[1]{\lnorm{#1}{2}}
+%% Numbers
+\newcommand{\reals}{\mathbb{R}}
+\newcommand{\naturals}{\mathbb{N}}
+\newcommand{\integers}{\mathbb{Z}}
+%% Vectors and Matrices
+\newcommand{\va}{\mathbf{a}}
+\newcommand{\vb}{\mathbf{b}}
+\newcommand{\vc}{\mathbf{c}}
+\newcommand{\vd}{\mathbf{d}}
+\newcommand{\ve}{\mathbf{e}}
+\newcommand{\vf}{\mathbf{f}}
+\newcommand{\vg}{\mathbf{g}}
+\newcommand{\vh}{\mathbf{h}}
+\newcommand{\vi}{\mathbf{i}}
+\newcommand{\vj}{\mathbf{j}}
+\newcommand{\vk}{\mathbf{k}}
+\newcommand{\vl}{\mathbf{l}}
+\newcommand{\vm}{\mathbf{m}}
+\newcommand{\vn}{\mathbf{n}}
+\newcommand{\vo}{\mathbf{o}}
+\newcommand{\vp}{\mathbf{p}}
+\newcommand{\vq}{\mathbf{q}}
+\newcommand{\vr}{\mathbf{r}}
+\newcommand{\vs}{\mathbf{s}}
+\newcommand{\vt}{\mathbf{t}}
+\newcommand{\vu}{\mathbf{u}}
+\newcommand{\vv}{\mathbf{v}}
+\newcommand{\vw}{\mathbf{w}}
+\newcommand{\vx}{\mathbf{x}}
+\newcommand{\vy}{\mathbf{y}}
+\newcommand{\vz}{\mathbf{z}}
+\newcommand{\vA}{\mathbf{A}}
+\newcommand{\vB}{\mathbf{B}}
+\newcommand{\vC}{\mathbf{C}}
+\newcommand{\vD}{\mathbf{D}}
+\newcommand{\vE}{\mathbf{E}}
+\newcommand{\vF}{\mathbf{F}}
+\newcommand{\vG}{\mathbf{G}}
+\newcommand{\vH}{\mathbf{H}}
+\newcommand{\vI}{\mathbf{I}}
+\newcommand{\vJ}{\mathbf{J}}
+\newcommand{\vK}{\mathbf{K}}
+\newcommand{\vL}{\mathbf{L}}
+\newcommand{\vM}{\mathbf{M}}
+\newcommand{\vN}{\mathbf{N}}
+\newcommand{\vO}{\mathbf{O}}
+\newcommand{\vP}{\mathbf{P}}
+\newcommand{\vQ}{\mathbf{Q}}
+\newcommand{\vR}{\mathbf{R}}
+\newcommand{\vS}{\mathbf{S}}
+\newcommand{\vT}{\mathbf{T}}
+\newcommand{\vU}{\mathbf{U}}
+\newcommand{\vV}{\mathbf{V}}
+\newcommand{\vW}{\mathbf{W}}
+\newcommand{\vX}{\mathbf{X}}
+\newcommand{\vY}{\mathbf{Y}}
+\newcommand{\vZ}{\mathbf{Z}}
+% Greek
+\newcommand{\valpha}{\boldsymbol{\alpha}}
+\newcommand{\vbeta}{\boldsymbol{\beta}}
+\newcommand{\vgamma}{\boldsymbol{\gamma}}
+\newcommand{\vdelta}{\boldsymbol{\delta}}
+\newcommand{\vepsilon}{\boldsymbol{\epsilon}}
+\newcommand{\vzeta}{\boldsymbol{\zeta}}
+\newcommand{\veta}{\boldsymbol{\eta}}
+\newcommand{\vtheta}{\boldsymbol{\theta}}
+\newcommand{\viota}{\boldsymbol{\iota}}
+\newcommand{\vkappa}{\boldsymbol{\kappa}}
+\newcommand{\vlambda}{\boldsymbol{\lambda}}
+\newcommand{\vmu}{{\boldsymbol\mu}}
+\newcommand{\vnu}{\boldsymbol{\nu}}
+\newcommand{\vxi}{\boldsymbol{\xi}}
+\newcommand{\vomicron}{\boldsymbol{\omicron}}
+\newcommand{\vpi}{\boldsymbol{\pi}}
+\newcommand{\vrho}{\boldsymbol{\rho}}
+\newcommand{\vsigma}{\boldsymbol{\sigma}}
+\newcommand{\vtau}{\boldsymbol{\tau}}
+\newcommand{\vupsilon}{\boldsymbol{\upsilon}}
+\newcommand{\vphi}{\boldsymbol{\phi}}
+\newcommand{\vchi}{\boldsymbol{\chi}}
+\newcommand{\vpsi}{\boldsymbol{\psi}}
+\newcommand{\vomega}{\boldsymbol{\omega}}
+\newcommand{\vAlpha}{\boldsymbol{\Alpha}}
+\newcommand{\vBeta}{\boldsymbol{\Beta}}
+\newcommand{\vGamma}{\boldsymbol{\Gamma}}
+\newcommand{\vDelta}{\boldsymbol{\Delta}}
+\newcommand{\vEpsilon}{\boldsymbol{\Epsilon}}
+\newcommand{\vZeta}{\boldsymbol{\Zeta}}
+\newcommand{\vEta}{\boldsymbol{\Eta}}
+\newcommand{\vTheta}{\boldsymbol{\Theta}}
+\newcommand{\vIota}{\boldsymbol{\Iota}}
+\newcommand{\vKappa}{\boldsymbol{\Kappa}}
+\newcommand{\vLambda}{\boldsymbol{\Lambda}}
+\newcommand{\vMu}{{\boldsymbol\Mu}}
+\newcommand{\vNu}{\boldsymbol{\Nu}}
+\newcommand{\vXi}{\boldsymbol{\Xi}}
+\newcommand{\vOmicron}{\boldsymbol{\Omicron}}
+\newcommand{\vPi}{\boldsymbol{\Pi}}
+\newcommand{\vRho}{\boldsymbol{\Rho}}
+\newcommand{\vSigma}{\boldsymbol{\Sigma}}
+\newcommand{\vTau}{\boldsymbol{\Tau}}
+\newcommand{\vUpsilon}{\boldsymbol{\Upsilon}}
+\newcommand{\vPhi}{\boldsymbol{\Phi}}
+\newcommand{\vChi}{\boldsymbol{\Chi}}
+\newcommand{\vPsi}{\boldsymbol{\Psi}}
+\newcommand{\vOmega}{\boldsymbol{\Omega}}
+%% Special Vectors
+\newcommand{\vzero}{\mathbf{0}}
+\newcommand{\vone}{\mathbf{1}}
+%% Special Matrices
+\newcommand{\eye}{\mathbf{I}}
+%% Matrix ops
+\newcommand{\transpose}{\mathsf{T}}
+\newcommand{\sign}{\mathrm{sign}}
+%% Mathcals
+\newcommand{\calA}{\mathcal{A}}
+\newcommand{\calB}{\mathcal{B}}
+\newcommand{\calC}{\mathcal{C}}
+\newcommand{\calD}{\mathcal{D}}
+\newcommand{\calE}{\mathcal{E}}
+\newcommand{\calF}{\mathcal{F}}
+\newcommand{\calG}{\mathcal{G}}
+\newcommand{\calH}{\mathcal{H}}
+\newcommand{\calI}{\mathcal{I}}
+\newcommand{\calJ}{\mathcal{J}}
+\newcommand{\calK}{\mathcal{K}}
+\newcommand{\calL}{\mathcal{L}}
+\newcommand{\calM}{\mathcal{M}}
+\newcommand{\calN}{\mathcal{N}}
+\newcommand{\calO}{\mathcal{O}}
+\newcommand{\calP}{\mathcal{P}}
+\newcommand{\calQ}{\mathcal{Q}}
+\newcommand{\calR}{\mathcal{R}}
+\newcommand{\calS}{\mathcal{S}}
+\newcommand{\calT}{\mathcal{T}}
+\newcommand{\calU}{\mathcal{U}}
+\newcommand{\calV}{\mathcal{V}}
+\newcommand{\calW}{\mathcal{W}}
+\newcommand{\calX}{\mathcal{X}}
+\newcommand{\calY}{\mathcal{Y}}
+\newcommand{\calZ}{\mathcal{Z}}
+
+%% Basic Maths Notation
+\newcommand{\indicator}{\mathds{1}}
+\newcommand{\GF}{\mathbf{GF}}
+\newcommand{\poly}{\mathrm{poly}}
+\mathchardef\mhyphen="2D
+\newcommand{\Mod}[1]{\ (\mathrm{mod}\ #1)}
+\newcommand{\convh}{\operatorname{conv}}
 
 \begin{document}
 
-The Levy-area process \( (W^1,W^2,A) \) (where \( W^1, W^2 \) are two independent Brownian Motions and \( A_t := \frac{1}{2} \left( \int_0^t W^1_u dW^2_u\ - \int_0^t W^2_u dW^1_u\ \right) \) is their associated Levy-area) obeys the following version of the Chen relation:
+The Levy-area process $A$ of a $d$-dimensional Brownian motion $W$ is given by $A^{i,j}_t \coloneqq  \frac{1}{2} (\int_0^t W_u^i dW_u^j - \int_0^t W_u^j dW_u^i)$. It is the unique process (in law) which obeys the following version of Chen's relation:
 
-\[ A_{0,t} = A_{0,s} + A_{s,t} + \frac{1}{2}\left( W^1_{0,s} W^2_{s,t} - W^2_{0,s} W^1_{s,t} \right)  \]
-where \( 0 \leq s \leq t \). Furthermore, any process that follows this relation is again a Levy-area process. In other words the distribution of Levy-area is the unique distribution (conditional on W) for which the relation above holds.
+\[
+A^{i,j}_{0,t} = A^{i,j}_{0,s} + A^{i,j}_{s,t} + \frac{1}{2}\left( W^i_{0,s} W^j_{s,t} - W^j_{0,s} W^i_{s,t} \right)
+\]
+for \( 0 \leq s \leq t \).
+
+\section{Brownian bridge flipping}
+
+\[
+A_{s,t} = H_{s,t} \otimes W_{s,t} - W_{s,t} \otimes H_{s,t} + b_{s,t}
+\]
+
+\[
+A^{i,j}_{s,t} = H^i_{s,t} W^j_{s,t} - W^i_{s,t} H^j_{s,t} + b^{i,j}_{s,t}
+\]
+
+\[
+b^{i,j}_{s,t} \coloneqq \int_s^t B^i_{s,u} \circ dB_u^j
+\]
+
+\[
+\tilde{A}^{i,j}_{s,t} = c_i H^i_{s,t} W^j_{s,t} - c_j W^i_{s,t} H^j_{s,t} + c_i c_j \tilde{b}^{i,j}_{s,t} \; \; \text{   for  } \vc \in \{-1, 1 \}^d
+\]
 
 \end{document}
