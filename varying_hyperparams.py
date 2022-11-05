@@ -86,7 +86,6 @@ def check_learning_rates():
         file.write("\n")
         file.write(nice_results.to_string())
 
-
 def check_gp_and_leaky():
     config = {
         'device': torch.device('cuda'),

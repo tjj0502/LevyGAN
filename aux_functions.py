@@ -69,13 +69,14 @@ def chen_combine(w_a_in: torch.Tensor, _w_dim: int):
     # w_0_s is from 0 to t/2 and w_s_t is from t/2 to t
     w_0_s, w_s_t = w_a_in.chunk(2)
     result = torch.clone(w_0_s + w_s_t)
-    result[:, :_w_dim] = sqrt(0.5) * result[:, :_w_dim]
-    result[:, _w_dim:(_w_dim + _a_dim)] = 0.5 * result[:, _w_dim:(_w_dim + _a_dim)]
+    result[:, :_w_dim] *= sqrt(0.5)
+    result[:, _w_dim:(_w_dim + _a_dim)] *= 0.5
 
     idx = _w_dim
     for k in range(_w_dim - 1):
         for l in range(k + 1, _w_dim):
-            correction_term = 0.25 * (w_0_s[:, k] * w_s_t[:, l] - w_0_s[:, l] * w_s_t[:, k])
+            correction_term = 0.25 * (w_0_s[:, k] * w_s_t[:, l]
+                                      - w_0_s[:, l] * w_s_t[:, k])
             result[:, idx] += correction_term
             idx += 1
 
@@ -237,8 +238,6 @@ def gen_2mom_approx(_w_dim: int, _batch_size: int, _W: np.ndarray = None):
     a_fixed_gen = np.random.randn(_batch_size, _a_dim)
     tv = [true_st_devs(__W[i]) for i in range(_batch_size)]
     tv = numpy.array(tv)
-    print(tv.shape)
-    print(a_fixed_gen.shape)
     a_fixed_gen = a_fixed_gen * tv
     return np.concatenate((__W, a_fixed_gen), axis=1)
 
@@ -348,7 +347,18 @@ def generate_tms(_w_dim: int, device):
     return _T, _M, signs
 
 
-# W(b,w), T(w,h,a), S(1,s,h), H(b,1,h). WT(b,h,a) = tensordot(W,T,dims=1), SH = mul(S,H). WTSH(b,s,a) = matmul(SH, WT)
+# W.shape = (bsz,w)
+# T.shape = (w,h,a)
+# S.shape = (1,s,h)
+# H.shape = (bsz,1,h)
+# WT= tensordot(W,T,dims=1), WT.shape = (bsz,h,a)
+# SH = mul(S,H), SH.shape = (bsz,s,h)
+# WTH = matmul(SH, WT), WTH.shape = (bsz,s,a)
+# M.shape = (s,1,a)
+# B.shape = (1,bsz,a)
+# MB = mul(M,B), MB.shape = (s,bsz,a)
+# WTHMB = flatten(WTH) + flatten(MB.permute(1,0,2))
+# WTHMB.shape = (s*bsz,a)
 def aux_compute_wth(w_in: torch.Tensor, h_in: torch.Tensor, _s: torch.Tensor, _t: torch.Tensor, _w_dim: int):
     _bsz = w_in.shape[0]
     assert w_in.shape == (_bsz, _w_dim)
@@ -360,7 +370,9 @@ def aux_compute_wth(w_in: torch.Tensor, h_in: torch.Tensor, _s: torch.Tensor, _t
     return _WTH
 
 
-# M(s,1,a), B(1,b,a), MB = mul(M,B)
+# M.shape = (s,1,a)
+# B.shape = (1,b,a)
+# MB = mul(M,B), MB.shape = (s,b,a)
 def aux_compute_wthmb(wth_in: torch.Tensor, b_in: torch.Tensor, _m: torch.Tensor, _w_dim):
     _a_dim = int((_w_dim * (_w_dim - 1)) // 2)
     _bsz = b_in.shape[0]

@@ -22,7 +22,7 @@ training_config = configs.training_config
 
 class LevyGAN:
 
-    def __init__(self, config_in: dict = None, serial_num_in: int = -1, do_load_samples = True):
+    def __init__(self, config_in: dict = None, serial_num_in: int = -1, do_load_samples=True):
         if config_in is None:
             importlib.reload(configs)
             cf = configs.config
@@ -73,6 +73,10 @@ class LevyGAN:
         # Number of iterations of Chen training
         self.num_Chen_iters = 0
 
+        self.testing_frequency = 200
+
+        self.descriptor = ""
+
         # 'Adam' of 'RMSProp'
         # self.which_optimizer = cf['optimizer']
 
@@ -121,11 +125,11 @@ class LevyGAN:
 
         # Load "true" samples generated from this fixed W increment
         fixed_test_data_filename = f"samples/fixed_samples_{self.w_dim}-dim.csv"
-        self.A_fixed_true = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')
-        self.A_fixed_true = self.A_fixed_true[:self.test_bsz, self.w_dim:(self.w_dim + self.a_dim)]
+        self.fixed_data = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')[:self.test_bsz]
+        self.A_fixed_true = self.fixed_data[:self.test_bsz, self.w_dim:(self.w_dim + self.a_dim)]
 
         samples_filename = f"samples/samples_{self.w_dim}-dim.csv"
-        self.samples = np.array([], dtype = float)
+        self.samples = np.array([], dtype=float)
         self.samples_torch = torch.tensor([], dtype=torch.float, device=self.device)
         if do_load_samples:
             self.samples = np.genfromtxt(samples_filename, dtype=float, delimiter=',')
@@ -143,7 +147,6 @@ class LevyGAN:
                 self.single_coord_labels += list_pairs(self.w_dim, w)
         else:
             self.single_coord_labels = list_pairs(self.w_dim)
-
 
         self.test_results = {
             'errors': [],
@@ -212,8 +215,8 @@ class LevyGAN:
 
         # Load "true" samples generated from this fixed W increment
         fixed_test_data_filename = f"samples/fixed_samples_{self.w_dim}-dim.csv"
-        self.A_fixed_true = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')
-        self.A_fixed_true = self.A_fixed_true[:self.test_bsz, self.w_dim:(self.w_dim + self.a_dim)]
+        self.fixed_data = np.genfromtxt(fixed_test_data_filename, dtype=float, delimiter=',')[:self.test_bsz]
+        self.A_fixed_true = self.fixed_data[:self.test_bsz, self.w_dim:(self.w_dim + self.a_dim)]
 
         samples_filename = f"samples/samples_{self.w_dim}-dim.csv"
         self.samples = np.genfromtxt(samples_filename, dtype=float, delimiter=',')
@@ -278,45 +281,81 @@ class LevyGAN:
         # Return gradient penalty
         return gp_weight * ((gradients_norm - 1) ** 2).mean(), avg_grad_norm
 
-    def all_2dim_errors(self):
+    def all_2dim_errors(self, comp_loss_d = False):
         assert self.w_dim == 2
-        errs = []
+        all_errors = []
+        losses = []
         for i in range(self.num_tests_for_lowdim):
             # Test Wasserstein error for fixed W
             data_fixed_true = self.fixed_data_for_lowdim[i]
             data_fixed_true = data_fixed_true[:self.test_bsz]
-            a_fixed_true = data_fixed_true[:, 2]
-            w_combo = torch.tensor(data_fixed_true[:, :2], dtype=torch.float, device=self.device)
-            noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
-            g_in = torch.cat((noise, w_combo), 1)
-            a_fixed_gen = self.netG(g_in)[:, 2].detach().cpu().numpy().squeeze()
-            errs.append(sqrt(ot.wasserstein_1d(a_fixed_true, a_fixed_gen, p=2)))
-        return errs
+            errors, joint_err, loss_d = self.compute_fixed_errors(data_fixed_true, comp_loss_d=comp_loss_d)
+            all_errors += errors
+            if comp_loss_d:
+                losses.append(loss_d)
+        return all_errors, losses
 
-    def all_3dim_errors(self, comp_joint_error=False):
+    def compute_fixed_errors(self, input_true_data, comp_joint_error=False, comp_loss_d = False):
+        noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
+        true_data = input_true_data[:self.test_bsz]
+        true_data_torch = torch.tensor(true_data, dtype=torch.float, device=self.device)
+        w_torch = true_data_torch[:, :self.w_dim]
+        a_true = true_data[:, self.w_dim : (self.w_dim + self.a_dim)]
+        g_in = torch.cat((noise, w_torch), 1)
+        fake_data = self.netG(g_in)
+        pruning_indices = self.unfixed_test_bsz * \
+                          torch.randint(high=self.s_dim, size=(self.unfixed_test_bsz,), device=self.device) + \
+                          torch.arange(self.unfixed_test_bsz, dtype=torch.int, device=self.device)
+        fake_data = (fake_data[pruning_indices]).detach()
+        a_fake = fake_data[:, self.w_dim:self.w_dim + self.a_dim].cpu().numpy()
+        errors = [sqrt(ot.wasserstein_1d(a_true[:, i], a_fake[:, i], p=2)) for i in
+                  range(self.a_dim)]
+        self.print_time("FIXED ERRORS")
+        if self.w_dim >= 3:
+            st_dev_err = self.avg_st_dev_error(a_fake)
+            self.test_results['st dev error'] = st_dev_err
+            self.print_time("ST DEV ERRORS")
+        else:
+            st_dev_err = float('inf')
+
+        if comp_loss_d:
+            prob_real = self.netD(true_data_torch)
+            prob_fake = self.netD(fake_data)
+            self.print_time("netD FOR REPORT")
+            loss_d_fake = prob_fake.mean(0).view(1)
+            loss_d_real = prob_real.mean(0).view(1)
+            loss_d = loss_d_fake - loss_d_real
+            loss_d = loss_d.item()
+        else:
+            loss_d = float('inf')
+
+        if comp_joint_error and (self.w_dim >= 3):
+            joint_err = joint_wass_dist(a_true[:self.joint_wass_dist_bsz],
+                                        a_fake[:self.joint_wass_dist_bsz])
+        else:
+            joint_err = float('inf')
+
+        return errors, joint_err, loss_d
+
+    def all_3dim_errors(self, comp_joint_error=False, comp_loss_d = False):
         assert self.w_dim == 3
-        errs = []
+        all_errors = []
         joint_errors = []
+        losses = []
         for i in range(self.num_tests_for_lowdim):
-            # Test Wasserstein error for fixed W
             data_fixed_true = self.fixed_data_for_lowdim[i]
             data_fixed_true = data_fixed_true[:self.test_bsz]
-            a_fixed_true = data_fixed_true[:, 3:6]
-            w_combo = torch.tensor(data_fixed_true[:, :3], dtype=torch.float, device=self.device)
-            noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
-            g_in = torch.cat((noise, w_combo), 1)
-            a_fixed_gen = self.netG(g_in)[:, 3:6].detach().cpu().numpy()
-            for i in range(3):
-                errs.append(sqrt(ot.wasserstein_1d(a_fixed_true[:, i], a_fixed_gen[:, i], p=2)))
+            errors, joint_err, loss_d = self.compute_fixed_errors(data_fixed_true, comp_joint_error, comp_loss_d)
+            all_errors += errors
             if comp_joint_error:
-                joint_err = joint_wass_dist(a_fixed_true[:self.joint_wass_dist_bsz],
-                                            a_fixed_gen[:self.joint_wass_dist_bsz])
                 joint_errors.append(joint_err)
+            if comp_loss_d:
+                losses.append(loss_d)
 
-        assert (len(errs) == len(self.single_coord_labels))
+        assert (len(all_errors) == len(self.single_coord_labels))
         if not comp_joint_error:
             joint_errors = [float('inf')]
-        return errs, joint_errors
+        return all_errors, joint_errors, losses
 
     # def multi_dim_wasserstein_errors(self):
     #     noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
@@ -335,9 +374,9 @@ class LevyGAN:
         difference = np.abs(self.st_dev_W_fixed - np.sqrt(np.abs(empirical_second_moments(_a_generated))))
         return difference.mean()
 
-    def do_tests(self, comp_joint_err=False, comp_grad_norm=False, comp_loss_d=False, comp_chen_error=False):
+    def do_tests(self, comp_joint_err=False, comp_grad_norm=False, comp_loss_d=False, comp_chen_error=False, save_models=False):
         chen_errors = []
-        if comp_chen_error or comp_loss_d or comp_grad_norm:
+        if comp_chen_error or comp_grad_norm:
             unfixed_data = self.samples_torch[:self.unfixed_test_bsz]
             actual_bsz = unfixed_data.shape[0]
 
@@ -346,22 +385,16 @@ class LevyGAN:
             z = torch.cat((noise, w), dim=1)
             self.print_time("Z FOR REPORT")
             fake_data = self.netG(z)
-            fake_data = fake_data.detach()
+            pruning_indices = self.unfixed_test_bsz * \
+                              torch.randint(high=self.s_dim, size=(self.unfixed_test_bsz,), device=self.device) + \
+                              torch.arange(self.unfixed_test_bsz, dtype=torch.int, device=self.device)
+            fake_data = (fake_data[pruning_indices]).detach()
             self.print_time("RUNNING netG FOR REPORT")
 
             if comp_grad_norm:
-                pruned_fake_data = fake_data[:actual_bsz]
-                gradient_penalty, gradient_norm = self._gradient_penalty(unfixed_data, pruned_fake_data, gp_weight=0)
+                gradient_penalty, gradient_norm = self._gradient_penalty(unfixed_data, fake_data, gp_weight=0)
                 self.test_results['gradient norm'] = gradient_norm
 
-            if comp_loss_d:
-                prob_real = self.netD(unfixed_data)
-                prob_fake = self.netD(fake_data)
-                self.print_time("netD FOR REPORT")
-                loss_d_fake = prob_fake.mean(0).view(1)
-                loss_d_real = prob_real.mean(0).view(1)
-                loss_d = loss_d_fake - self.s_dim * loss_d_real
-                self.test_results['loss d'] = loss_d.item()
             self.print_time("UNFIXED PART OF REPORT")
             chen_errors = []
             if comp_chen_error:
@@ -370,49 +403,39 @@ class LevyGAN:
                 self.print_time("CHEN ERRORS")
 
         joint_wass_errors = [float('inf')]
-        st_dev_err = float('inf')
-
+        losses = [float('inf')]
         # Test Wasserstein error for fixed W
         errors = []
         if self.w_dim > 3:
-            noise = torch.randn((self.test_bsz, self.noise_size), dtype=torch.float, device=self.device)
-            g_in = torch.cat((noise, self.W_fixed), 1)
-            a_fixed_gen = self.netG(g_in)[:, self.w_dim:self.w_dim + self.a_dim].detach().cpu().numpy()
-            errors = [sqrt(ot.wasserstein_1d(self.A_fixed_true[:, i], a_fixed_gen[:, i], p=2)) for i in
-                      range(self.a_dim)]
-            self.print_time("FIXED ERRORS")
-            st_dev_err = self.avg_st_dev_error(a_fixed_gen)
-            self.print_time("ST DEV ERRORS")
-
+            errors, joint_wass_error, loss_d = self.compute_fixed_errors(self.fixed_data, comp_joint_err, comp_loss_d)
+            joint_wass_errors = [joint_wass_error]
+            losses = [loss_d]
+            self.test_results['joint wass errors'] = joint_wass_errors
         elif self.w_dim == 2:
-            errors = self.all_2dim_errors()
+            errors, losses = self.all_2dim_errors()
         elif self.w_dim == 3:
-            errors, joint_wass_errors = self.all_3dim_errors(comp_joint_error=comp_joint_err)
+            errors, joint_wass_errors, losses = self.all_3dim_errors(comp_joint_err, comp_loss_d)
             self.test_results['joint wass errors'] = joint_wass_errors
 
         self.test_results['errors'] = errors
-        self.test_results['st dev error'] = st_dev_err
+        self.test_results['loss d'] = losses
         flag_for_joint_err = True  # just to avoid computing joint error twice
         if sum(errors) < self.test_results['min sum']:
             self.test_results['min sum'] = sum(errors)
             self.test_results['best fixed errors'] = make_pretty(errors)
 
-            if self.w_dim > 3 and comp_joint_err:
-                joint_wass_errors = [joint_wass_dist(self.A_fixed_true[:self.joint_wass_dist_bsz],
-                                                   a_fixed_gen[:self.joint_wass_dist_bsz])]
-                self.test_results['joint wass errors'] = joint_wass_errors
-
         if comp_chen_error and (sum(chen_errors) < self.test_results['min chen sum']):
             self.test_results['min chen sum'] = sum(chen_errors)
             self.test_results['best chen errors'] = make_pretty(chen_errors)
 
-            if self.w_dim > 3 and comp_joint_err and flag_for_joint_err:
-                joint_wass_errors = [joint_wass_dist(self.A_fixed_true[:self.joint_wass_dist_bsz],
-                                                   a_fixed_gen[:self.joint_wass_dist_bsz])]
-                self.test_results['joint wass errors'] = joint_wass_errors
-
+        report = self.make_report(add_line_break=False)
         if sum(joint_wass_errors) < sum(self.test_results['best joint errors']):
             self.test_results['best joint errors'] = make_pretty(joint_wass_errors)
+            if save_models:
+                # self.save_current_dicts(report=report,
+                #                         descriptor=f"{self.descriptor}_min_sum")
+                print("Warning: not saving on min sum")
+
 
         if comp_joint_err:
             score = self.model_score()
@@ -421,7 +444,15 @@ class LevyGAN:
 
         if score < self.test_results['best score']:
             self.test_results['best score'] = make_pretty(score)
-            self.test_results['best score report'] = self.make_report(add_line_break=False)
+            report = self.make_report(add_line_break=False)
+            self.test_results['best score report'] = report
+            if save_models:
+                self.save_current_dicts(report=report,
+                                        descriptor=f"{self.descriptor}_max_scr")
+                print("Saved model with best score")
+
+        return
+
 
     def model_score(self, a: float = 3.0, b: float = 0.0, c: float = 1.0):
         res = 0.0
@@ -496,9 +527,11 @@ class LevyGAN:
         if not (chen_iters is None):
             report += f"chen_iters: {chen_iters}/{self.num_Chen_iters}, "
 
+        score = self.test_results['best score']
+        report += f"scr: {score:.5f}, "
         grad_norm = self.test_results['gradient norm']
         report += f"discr grad norm: {grad_norm:.5f}, "
-        report += f"discr loss: {self.test_results['loss d']:.5f}"
+        report += f"discr loss(es): {make_pretty(self.test_results['loss d'])}"
         joint_wass_errors = self.test_results['joint wass errors']
         if len(joint_wass_errors) > 0:
             report += f", joint errs: {make_pretty(joint_wass_errors)}"
@@ -516,43 +549,28 @@ class LevyGAN:
 
         return report
 
-    def draw_error_graphs(self, wass_errors_through_training, chen_errors_through_training=None,
+    def draw_error_graphs(self, wass_errors_through_training, losses_through_training,
                           joint_errors_through_training=None, descriptor: str = ''):
         if not self.should_draw_graphs:
             return
         labels = self.single_coord_labels
-        if not (joint_errors_through_training is None) and not (chen_errors_through_training is None):
+        if not (joint_errors_through_training is None):
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 35))
             ax3.set_title("Joint 2-Wasserstein errors")
             ax3.plot(joint_errors_through_training, label=self.joint_labels)
-            ax3.set_ylim([-0.01, 0.5])
-            ax3.set_xlabel("iterations")
-            ax2.set_title("Chen errors")
-            ax2.plot(chen_errors_through_training, label=labels)
-            ax2.set_ylim([-0.01, 0.8])
-            ax2.set_xlabel("iterations")
-            ax2.legend(prop={'size': 15})
-        elif not (chen_errors_through_training is None):
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 25))
-            ax2.set_title("Chen errors")
-            ax2.plot(chen_errors_through_training, label=labels)
-            ax2.set_ylim([-0.01, 0.8])
-            ax2.set_xlabel("iterations")
-            ax2.legend(prop={'size': 15})
-
-        elif not (joint_errors_through_training is None):
-            fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(20, 25))
-            ax3.set_title("Joint 2-Wasserstein errors")
-            ax3.plot(joint_errors_through_training, label=self.joint_labels)
-            ax3.set_ylim([-0.01, 0.5])
+            ax3.set_ylim([-0.01, 0.9])
             ax3.set_xlabel("iterations")
         else:
-            fig, ax1 = plt.subplots(1, 1, figsize=(20, 15))
+            fig, (ax1, ax2) = plt.subplots(1, 1, figsize=(20, 15))
+            ax2.set_xlabel("iterations")
         ax1.set_title("Individual 2-Wasserstein errors")
         ax1.plot(wass_errors_through_training, label=labels)
-        ax1.set_ylim([-0.005, 0.2])
-        ax1.set_xlabel("iterations")
+        ax1.set_ylim([-0.005, 0.5])
         ax1.legend(prop={'size': 15})
+        ax2.set_title("Discriminator losses")
+        ax2.plot(losses_through_training, label=self.joint_labels)
+        ax2.set_ylim([-0.01, 0.2])
+        ax2.legend(prop={'size': 15})
 
         fig.show()
         graph_filename = f"model_saves/{self.dict_saves_folder}/graph_{self.dict_saves_folder}_num{self.serial_number}_{descriptor}.png"
@@ -660,7 +678,7 @@ class LevyGAN:
 
         compute_joint_error = tr_conf['compute joint error']
 
-        descriptor = tr_conf['descriptor']
+        self.descriptor = tr_conf['descriptor']
 
         if 'print reports' in tr_conf:
             self.print_reports = tr_conf['print reports']
@@ -679,6 +697,7 @@ class LevyGAN:
         wass_errors_through_training = []
         chen_errors_through_training = []
         joint_errors_through_training = []
+        losses_through_training = []
 
         iters = 0
         for epoch in range(self.num_epochs):
@@ -712,11 +731,12 @@ class LevyGAN:
 
                 loss_d_fake = prob_fake.mean(0).view(1)
                 loss_d_real = prob_real.mean(0).view(1)
-                loss_d = loss_d_fake - self.s_dim * loss_d_real
-                self.test_results['loss d'] = loss_d.item()
+                loss_d = loss_d_fake - loss_d_real
 
                 if self.Lipschitz_mode == 'gp':
-                    pruned_fake_data = fake_data_detached[:actual_bsz]
+                    pruning_indices = bsz * torch.randint(low=0, high=self.s_dim, size=(bsz,), device=self.device) + \
+                                      torch.arange(bsz, dtype=torch.int, device=self.device)
+                    pruned_fake_data = (fake_data_detached[pruning_indices]).detach()
                     gradient_penalty, gradient_norm = self._gradient_penalty(data, pruned_fake_data,
                                                                              gp_weight=gp_weight)
                     self.test_results['gradient norm'] = gradient_norm
@@ -730,7 +750,7 @@ class LevyGAN:
                 self.print_time(description="OPT D")
 
                 # train Generator with probability 1/5
-                if iters % num_discr_iters == 0:
+                if (iters % num_discr_iters == 0) and (iters % self.testing_frequency != 0):
                     self.netG.zero_grad()
                     loss_g = self.netD(fake_data)
                     self.print_time(description="netD 2")
@@ -740,9 +760,9 @@ class LevyGAN:
                     opt_g.step()
                     self.print_time(description="OPT G")
 
-                if iters % 100 == 0:
+                if iters % self.testing_frequency == 0:
                     self.print_time(description="BEFORE TESTS")
-                    self.do_tests(comp_joint_err=compute_joint_error)
+                    self.do_tests(comp_joint_err=compute_joint_error, comp_loss_d=True, save_models=save_models)
                     self.print_time(description="AFTER TESTS")
                     if self.print_reports:
                         report = self.make_report(epoch=epoch, iters=iters)
@@ -750,19 +770,12 @@ class LevyGAN:
                     self.print_time(description="AFTER REPORT")
                     errors = self.test_results['errors']
                     wass_errors_through_training.append(errors)
+                    losses = self.test_results['loss d']
+                    losses_through_training.append(losses)
                     # chen_errors = self.test_results['chen errors']
                     # chen_errors_through_training.append(chen_errors)
                     if compute_joint_error:
                         joint_errors_through_training.append(self.test_results['joint wass errors'])
-                    report_for_saving_dicts = self.make_report(add_line_break=False)
-                    # Early stopping checkpoint
-                    error_sum = sum(errors)
-                    if error_sum <= self.test_results['min sum']:
-                        self.test_results['min sum'] = error_sum
-                        if save_models:
-                            self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}_min_sum")
-                        if self.print_reports:
-                            print("Min fixed sum")
 
                     # chen_err_sum = sum(chen_errors)
                     # if chen_err_sum <= self.test_results['min chen sum']:
@@ -779,35 +792,163 @@ class LevyGAN:
         best_score = self.test_results['best score']
         self.draw_error_graphs(wass_errors_through_training,
                                joint_errors_through_training=joint_errors_through_training,
-                               descriptor=f"{descriptor}_score_{best_score}")
+                               losses_through_training=losses_through_training,
+                               descriptor=f"{self.descriptor}_score_{best_score}")
 
-    # def chen_train(self, tr_conf: dict):
-    #     print("blub")
-    #     # Number of iterations of Chen training
-    #     num_Chen_iters = tr_conf['num Chen iters']
-    #
-    #     # 'Adam' of 'RMSProp'
-    #     which_optimizer = tr_conf['optimizer']
-    #
-    #     # Learning rate for optimizers
-    #     lrG = tr_conf['lrG']
-    #     lrD = tr_conf['lrD']
-    #
-    #     # Beta hyperparam for Adam optimizers
-    #     beta1 = tr_conf['beta1']
-    #     beta2 = tr_conf['beta2']
-    #
-    #     if which_optimizer == 'Adam':
-    #         optG = torch.optim.Adam(self.netG.parameters(), lr=lrG, betas=(beta1, beta2))
-    #         optD = torch.optim.Adam(self.netD.parameters(), lr=lrD, betas=(beta1, beta2))
-    #     elif which_optimizer == 'RMSProp':
-    #         optG = torch.optim.RMSprop(self.netG.parameters(), lr=lrG)
-    #         optD = torch.optim.RMSprop(self.netD.parameters(), lr=lrD)
-    #
-    #     # To keep the criterion Lipschitz
-    #     weight_clipping_limit = tr_conf['weight clipping limit']
-    #
-    #     # for gradient penalty
-    #     gp_weight = tr_conf['gp weight']
-    #
-    #     bsz = tr_conf['bsz']
+    def chen_train(self, tr_conf_in: dict = None, save_models=True):
+        self.print_time("START CHEN TRAIN")
+        if tr_conf_in is None:
+            importlib.reload(configs)
+            tr_conf = configs.training_config
+        else:
+            tr_conf = tr_conf_in
+
+        # Number of training epochs using classical training
+        self.num_Chen_iters = tr_conf['num Chen iters']
+
+        # 'Adam' of 'RMSProp'
+        which_optimizer = tr_conf['optimizer']
+
+        # Learning rate for optimizers
+        lr_g = tr_conf['lrG']
+        lr_d = tr_conf['lrD']
+        num_discr_iters = tr_conf['num discr iters']
+
+        # Beta hyperparam for Adam optimizers
+        beta1 = tr_conf['beta1']
+        beta2 = tr_conf['beta2']
+
+        if which_optimizer == 'Adam':
+            opt_g = torch.optim.Adam(self.netG.parameters(), lr=lr_g, betas=(beta1, beta2))
+            opt_d = torch.optim.Adam(self.netD.parameters(), lr=lr_d, betas=(beta1, beta2))
+        elif which_optimizer == 'RMSProp':
+            opt_g = torch.optim.RMSprop(self.netG.parameters(), lr=lr_g)
+            opt_d = torch.optim.RMSprop(self.netD.parameters(), lr=lr_d)
+        else:
+            opt_g = torch.optim.RMSprop(self.netG.parameters(), lr=lr_g)
+            opt_d = torch.optim.RMSprop(self.netD.parameters(), lr=lr_d)
+
+        # Which method of keeping the critic Lipshcitz to use. 'gp' for gradient penalty, 'wc' for weight clipping
+        self.Lipschitz_mode = tr_conf['Lipschitz mode']
+
+        # for weight clipping
+        weight_clipping_limit = tr_conf['weight clipping limit']
+
+        # for gradient penalty
+        gp_weight = tr_conf['gp weight']
+
+        bsz = tr_conf['bsz']
+
+        compute_joint_error = tr_conf['compute joint error']
+
+        self.descriptor = tr_conf['descriptor']
+
+        if 'print reports' in tr_conf:
+            self.print_reports = tr_conf['print reports']
+
+        if 'should draw graphs' in tr_conf:
+            self.should_draw_graphs = tr_conf['should draw graphs']
+
+        # Early stopping setup
+        self.test_results['min sum'] = float('inf')
+        self.test_results['min chen sum'] = float('inf')
+
+        # For graphing
+        wass_errors_through_training = []
+        chen_errors_through_training = []
+        joint_errors_through_training = []
+        losses_through_training = []
+
+        iters = 0
+        for i in range(self.num_Chen_iters):
+            self.print_time("TOP")
+            self.netD.zero_grad()
+            self.netG.zero_grad()
+
+            # weight clipping so critic is lipschitz
+            if self.Lipschitz_mode == 'wc':
+                for p in self.netD.parameters():
+                    p.data.clamp_(-weight_clipping_limit, weight_clipping_limit)
+
+            z = torch.randn((bsz, self.noise_size + self.w_dim), dtype=torch.float, device=self.device)
+            w = z[:, self.noise_size:]
+            self.print_time(description="MAKE Z 1")
+            fake_data = self.netG(z)
+            self.print_time(description="netG 1")
+            fake_data_detached = fake_data.detach()
+
+            # Key step: generate true data using chen combine
+            true_data = chen_combine(chen_combine(fake_data_detached, self.w_dim), self.w_dim)
+
+            prob_real = self.netD(true_data)
+            prob_fake = self.netD(fake_data_detached)
+            self.print_time(description="netD 1 twice")
+
+            loss_d_fake = prob_fake.mean(0).view(1)
+            loss_d_real = prob_real.mean(0).view(1)
+            loss_d = loss_d_fake - loss_d_real
+
+            true_data_bsz = (self.s_dim * bsz)//4
+
+            if self.Lipschitz_mode == 'gp':
+                pruning_indices = true_data_bsz * torch.randint(low=0, high=4, size=(true_data_bsz,), device=self.device) + \
+                                  torch.arange(true_data_bsz, dtype=torch.int, device=self.device)
+                pruned_fake_data = (fake_data_detached[pruning_indices]).detach()
+                gradient_penalty, gradient_norm = self._gradient_penalty(true_data, pruned_fake_data,
+                                                                         gp_weight=gp_weight)
+                self.test_results['gradient norm'] = gradient_norm
+                self.print_time(description="GRAD PENALTY")
+                loss_d += gradient_penalty
+
+            self.print_time(description="BEFORE BACKPROP")
+            loss_d.backward()
+            self.print_time(description="netD BACKPROP")
+            opt_d.step()
+            self.print_time(description="OPT D")
+
+            # train Generator every num_discr_iters iterations
+            if (iters % num_discr_iters == 0) and (iters % self.testing_frequency != 0):
+                self.netG.zero_grad()
+                loss_g = self.netD(fake_data)
+                self.print_time(description="netD 2")
+                loss_g = - loss_g.mean(0).view(1)
+                loss_g.backward()
+                self.print_time(description="netG BACKPROP")
+                opt_g.step()
+                self.print_time(description="OPT G")
+
+            if iters % self.testing_frequency == 0:
+                self.print_time(description="BEFORE TESTS")
+                self.do_tests(comp_joint_err=compute_joint_error, comp_loss_d=True, save_models=save_models)
+                self.print_time(description="AFTER TESTS")
+                if self.print_reports:
+                    report = self.make_report(chen_iters=iters)
+                    print(report)
+                self.print_time(description="AFTER REPORT")
+                errors = self.test_results['errors']
+                wass_errors_through_training.append(errors)
+                losses = self.test_results['loss d']
+                losses_through_training.append(losses)
+                # chen_errors = self.test_results['chen errors']
+                # chen_errors_through_training.append(chen_errors)
+                if compute_joint_error:
+                    joint_errors_through_training.append(self.test_results['joint wass errors'])
+
+
+                # chen_err_sum = sum(chen_errors)
+                # if chen_err_sum <= self.test_results['min chen sum']:
+                #     self.test_results['min chen sum'] = chen_err_sum
+                #     if save_models:
+                #         self.save_current_dicts(report=report_for_saving_dicts, descriptor=f"{descriptor}min_chen")
+                #     if self.print_reports:
+                #         print("Min Chen sum")
+
+                self.print_time(description="SAVING DICTS")
+                self.do_timeing = False
+            iters += 1
+
+        best_score = self.test_results['best score']
+        self.draw_error_graphs(wass_errors_through_training,
+                               joint_errors_through_training=joint_errors_through_training,
+                               losses_through_training=losses_through_training,
+                               descriptor=f"{self.descriptor}_score_{best_score}")

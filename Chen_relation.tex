@@ -462,32 +462,156 @@
 \mathchardef\mhyphen="2D
 \newcommand{\Mod}[1]{\ (\mathrm{mod}\ #1)}
 \newcommand{\convh}{\operatorname{conv}}
+\newcommand{\bsz}{\text{\tiny bsz}}
 
 \begin{document}
 
-The Levy-area process $A$ of a $d$-dimensional Brownian motion $W$ is given by $A^{i,j}_t \coloneqq  \frac{1}{2} (\int_0^t W_u^i dW_u^j - \int_0^t W_u^j dW_u^i)$. It is the unique process (in law) which obeys the following version of Chen's relation:
+The Levy-area process $A$ of a $d$-dimensional Brownian motion $W$ is given by $A^{(i,j)}_t \coloneqq  \frac{1}{2} (\int_0^t W_u^{(i)} dW_u^{(j)} - \int_0^t W_u^{(j)} dW_u^{(i)})$. It is the unique process (in law) which obeys the following version of Chen's relation:
 
 \[
-A^{i,j}_{0,t} = A^{i,j}_{0,s} + A^{i,j}_{s,t} + \frac{1}{2}\left( W^i_{0,s} W^j_{s,t} - W^j_{0,s} W^i_{s,t} \right)
+A^{(i,j)}_{0,t} = A^{(i,j)}_{0,s} + A^{(i,j)}_{s,t} + \frac{1}{2}\left( W^{(i)}_{0,s} W^{(j)}_{s,t} - W^{(j)}_{0,s} W^{(i)}_{s,t} \right)
 \]
 for \( 0 \leq s \leq t \).
 
 \section{Brownian bridge flipping}
+
+$\bsz$
+
 
 \[
 A_{s,t} = H_{s,t} \otimes W_{s,t} - W_{s,t} \otimes H_{s,t} + b_{s,t}
 \]
 
 \[
-A^{i,j}_{s,t} = H^i_{s,t} W^j_{s,t} - W^i_{s,t} H^j_{s,t} + b^{i,j}_{s,t}
+A^{(i,j)}_{s,t} \coloneqq  \frac{1}{2} \left( \int_s^t W_{s,u}^{(i)} dW_u^{(j)} - \int_s^t W_{s,u}^{(j)} dW_u^{(i)} \right)
 \]
 
 \[
-b^{i,j}_{s,t} \coloneqq \int_s^t B^i_{s,u} \circ dB_u^j
+\tilde{A}^{(i,j)}_{s,t} = H^{(i)}_{s,t} W^{(j)}_{s,t} - W^{(i)}_{s,t} H^{(j)}_{s,t} + \tilde{b}^{(i,j)}_{s,t} \;\; \text{ where } \tilde{b}^{(i,j)}_{s,t} \sim \normal \left( 0, \frac{1}{12} (t-s)^2 \right)
 \]
 
 \[
-\tilde{A}^{i,j}_{s,t} = c_i H^i_{s,t} W^j_{s,t} - c_j W^i_{s,t} H^j_{s,t} + c_i c_j \tilde{b}^{i,j}_{s,t} \; \; \text{   for  } \vc \in \{-1, 1 \}^d
+b^{(i,j)}_{s,t} \coloneqq \int_s^t B^{(i)}_{s,u} \circ dB_u^{(j)}
 \]
+
+\[
+\tilde{A}^{(i,j)}_{s,t} = c_i H^{(i)}_{s,t} W^{(j)}_{s,t} - c_j W^{(i)}_{s,t} H^{(j)}_{s,t} + c_i c_j \tilde{b}^{(i,j)}_{s,t} \; \; \text{   for  } \vc \in \{-1, 1 \}^d 
+\]
+
+\[
+\E[ \tilde{A} ] = \E[A] = 0
+\]
+
+\newpage
+
+\[
+\tilde{H} \sim \normal^d \left( 0, \tfrac{1}{12} \right)
+\]
+
+\[
+s = 2^d , \;\;\; a = \frac{d(d-1)}{2} , \;\;\; h = d , \;\;\; W \leftarrow (b \times d) , \;\;\; H \leftarrow (b \times h) \;\;\; 
+\]
+
+\[
+T = \left( t_{i,j,k} \right) _{ \substack{1 \leq i \leq d \\ 1 \leq j \leq h \\ 1 \leq k \leq a}} \;\; \text{ where } t_{i,j,k} = \begin{cases}
+	1 & \text{ if } j < i \text{ and } k = \operatorname{a_{index}}(i,j) \\
+	-1 & \text{ if } i < j \text{ and } k = \operatorname{a_{index}}(j,i) \\
+	0 & \text{ otherwise}
+\end{cases}
+\]
+
+\[
+M = \left( m_{l,k} \right) _{ \substack{1 \leq l \leq s \\ 1 \leq k \leq a}} \;\; \text{ where } m_{l, k} = S_{l,i} S_{l,j} \text{ if } k = \operatorname{a_{index}}(i,j)
+\]
+
+\[
+S = (x \in \{-1,1\}^{h,\text{ row}}) \in \calM^{s \times h}
+\]
+
+\begin{tt}
+W.shape = (bsz,w);
+T.shape = (w,h,a)
+
+WT= tensordot(W,T,dims=1), WT.shape = (bsz,h,a)
+
+S.shape = (1,s,h);
+H.shape = (bsz,1,h)
+
+SH = mul(S,H), SH.shape = (bsz,s,h)
+
+WTH = matmul(SH, WT), WTH.shape = (bsz,s,a)
+
+M.shape = (s,1,a);
+B.shape = (1,bsz,a)
+
+MB = mul(M,B), MB.shape = (s,bsz,a)
+
+WTHMB = flatten(WTH) + flatten(MB.permute(1,0,2))
+
+WTHMB.shape = (s*bsz,a)
+\end{tt}
+
+\newpage
+
+\[
+dX_t = \mu(X_t, t) dt + \sigma(X_t, t) dW_t
+\]
+
+\[
+\hat{X}_{t_{k+1}} = \hat{X}_{t_k} + \mu(\hat{X}_{t_k}, t_k)\ \Delta t_k + \sigma(\hat{X}_{t_k}, t_k) \Delta W_k + 1
+\]
+
+\[
+\E X = \E Y = 0, \;\; \E X^2  = \E Y^2  \text{ and }  \E{XY} \implies \; \lnorm{X + Y}{L^2} = \sqrt{2} \lnorm{X}{L^2}
+\]
+
+
+\[
+\theta^{(i,j)} \coloneqq \int_s^t W_{s,u}^{(i)} dW_u^{(j)} = \int_s^t \int_s^u dW_v^{(i)} dW_u^{(j)}
+\]
+
+
+\[
+A^{(i,j)}_{s,t} = \frac{1}{2} \left( \int_s^t \int_s^u dW_v^{(i)} dW_u^{(j)} - \int_s^t \int_s^u dW_v^{(j)} dW_u^{(i)} \right) =
+\frac{1}{2} \left( \theta^{(i,j)} - \theta^{(j,i)} \right)
+\]
+
+\[
+\lnorm{A^{(i,j)}_{s,t} - F(L_1(\vW, \ldots, L_n(\vW))}{L^2(\P)} \geq \frac{1}{\pi \sqrt{n}}  \;\;\;\;\;\; \lnorm{ A^{(i,j)}_{s,t} - \E[ A^{(i,j)}_{s,t} \mid \calG_n ] }{L^2(\P)} \geq \frac{1}{2 \sqrt{2}} \frac{1}{\sqrt{n}}
+\]
+
+\[
+\lnorm{ A^{(i,j)}_{s,t} - \E[ A^{(i,j)}_{s,t} \mid \calG_n ] }{L^2(\P)} \geq \frac{1}{2 \sqrt{2}} \frac{1}{\sqrt{n}}
+\]
+
+\[
+\calI(h) = \frac{1}{2}(W_h W_h^\top - h I_d) + A(h) = ( \theta^{(i,j)}_h )_{1 \leq i,j \leq d}
+\]
+
+\[
+d \;\;\;\; a = d(d-1)/2
+\]
+
+\[
+A_{0,t} \overset{d}{=} t A_{0,1} \;\;\; W_{0,t} \overset{d}{=} \sqrt{t} W_{0,1} \;\;\; \times \frac{1}{\sqrt{2}} \;\;\; \times \frac{1}{2} \;\;\; W_{0,\frac{1}{2}} \;\;\; A_{0,\frac{1}{2}} \;\;\; W_{\frac{1}{2}, 1} \;\;\; A_{\frac{1}{2}, 1}
+\]
+
+\[
+W_{0,1} = W_{0,\frac{1}{2}} + W_{\frac{1}{2}, 1}
+\]
+
+\[
+d \rightarrow 2d \;\;\; \implies \;\;\; \epsilon \rightarrow \frac{\epsilon}{\sqrt{2}}
+\]
+
+\[
+C_{\text{\tiny GAN,time}} = \epsilon_{\text{\tiny GAN}} \sqrt{t_{\text{\tiny GAN}}}  \;\;\; C_{\text{\tiny julia,time}} = \epsilon_{\text{\tiny julia}} \sqrt{t_{\text{\tiny julia}}}  \;\;\; C_{\text{\tiny GAN,noise}} = \epsilon_{\text{\tiny GAN}} \sqrt{n} \;\text{ where } n \coloneqq \text{[noise size]}
+\]
+
+\begin{align}
+    C_{\text{\tiny GAN,time}} &= \epsilon_{\text{\tiny GAN}} \sqrt{t_{\text{\tiny GAN}}} \\        
+    C_{\text{\tiny julia,time}} &= \epsilon_{\text{\tiny julia}} \sqrt{t_{\text{\tiny julia}}} \\
+    C_{\text{\tiny GAN,noise}} &= \epsilon_{\text{\tiny GAN}} \sqrt{n} \;\;\;\;\;\; \text{ where } n \coloneqq \text{[noise size]}
+\end{align}
 
 \end{document}
