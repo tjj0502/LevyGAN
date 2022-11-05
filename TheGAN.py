@@ -454,7 +454,7 @@ class LevyGAN:
         return
 
 
-    def model_score(self, a: float = 3.0, b: float = 0.0, c: float = 1.0):
+    def model_score(self, a: float = 1.0, b: float = 0.0, c: float = 2.0):
         res = 0.0
         res += a * mean(self.test_results['errors'])
         if b > 0.0:

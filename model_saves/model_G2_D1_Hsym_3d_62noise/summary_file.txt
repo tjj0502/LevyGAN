@@ -1,0 +1,3 @@
+0 SUMMARY FILE FOR: model_G2_D1_Hsym_3d_62noise
+1 CLASSIC_max_scr: scr: 1.55630, discr grad norm: 0.56495, discr loss(es): [0.0029, -0.0005, -0.0062], joint errs: [0.2616, 0.24, 0.2344], st dev err: 0.12614, errs: [0.1226, 0.0841, 0.0557, 0.1256, 0.0727, 0.0591, 0.119, 0.0813, 0.0404] 
+2 CHEN_max_scr: scr: 1.32960, discr grad norm: 0.84337, discr loss(es): [-0.0029, -0.0026, -0.0056], joint errs: [0.2281, 0.2051, 0.202], st dev err: 0.12171, errs: [0.0616, 0.0509, 0.0802, 0.0418, 0.0583, 0.0767, 0.0305, 0.0634, 0.0687] 

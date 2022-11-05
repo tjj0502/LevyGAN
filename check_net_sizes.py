@@ -12,17 +12,17 @@ config = {
     'leakyReLU slope': 0.2,
     'test bsz': 16384,
     'unfixed test bsz': 16384,
-    'joint wass dist bsz': 8192,
-    'num tests for 2d': 3,
+    'joint wass dist bsz': 4096,
+    'num tests for 2d': 4,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
     'should draw graphs': True,
     'do timeing': False
 }
 
 training_config = {
-    'num epochs': 10,
+    'num epochs': 8,
     'max iters': None,
-    'num Chen iters': 6000,
+    'num Chen iters': 8000,
     'optimizer': 'Adam',
     'lrG': 0.000008,
     'lrD': 0.0001,
@@ -38,24 +38,23 @@ training_config = {
     'descriptor': ''
 }
 
-lines = []
-for gen in range(1, 2):
-    for discr in range(1, 2):
-        config['which generator'] = gen
-        config['which discriminator'] = discr
-        training_config['descriptor'] = "CLASSIC"
-        levG = LevyGAN(config)
-        levG.classic_train(training_config)
-        report = levG.test_results['best score report']
-        line = f"CLASSIC gen: {gen}, discr: {discr}, {report}"
-        lines.append(line)
-        training_config['descriptor'] = "CHEN"
-        levG = LevyGAN(config)
-        levG.chen_train(training_config)
-        report = levG.test_results['best score report']
-        line = f"CHEN gen: {gen}, discr: {discr}, {report}"
-        lines.append(line)
-
 with open("net_test_report.txt", "a+") as f:
-    f.writelines(lines)
+    for gen in range(1, 5):
+        for discr in range(1, 5):
+            config['which generator'] = gen
+            config['which discriminator'] = discr
+            training_config['descriptor'] = "CLASSIC"
+            levG = LevyGAN(config)
+            levG.classic_train(training_config)
+            report = levG.test_results['best score report']
+            line = f"CLASSIC gen: {gen}, discr: {discr}, {report}\n"
+            f.write(line)
+
+            training_config['descriptor'] = "CHEN"
+            levG = LevyGAN(config)
+            levG.chen_train(training_config)
+            report = levG.test_results['best score report']
+            line = f"CHEN gen: {gen}, discr: {discr}, {report}\n"
+            f.write(line)
+
 
