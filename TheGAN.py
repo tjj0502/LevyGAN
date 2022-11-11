@@ -460,9 +460,9 @@ class LevyGAN:
         self.start_time = timeit.default_timer()
         fake_data = self.netG(z)
         self.print_time("EVAL")
-        pruning_indices = self.unfixed_test_bsz * \
-                          torch.randint(high=self.s_dim, size=(self.unfixed_test_bsz,), device=self.device) + \
-                          torch.arange(self.unfixed_test_bsz, dtype=torch.int, device=self.device)
+        pruning_indices = actual_bsz * \
+                          torch.randint(high=self.s_dim, size=(actual_bsz,), device=self.device) + \
+                          torch.arange(actual_bsz, dtype=torch.int, device=self.device)
         fake_data = (fake_data[pruning_indices]).detach()
         return fake_data
 
@@ -570,18 +570,18 @@ class LevyGAN:
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 35))
             ax3.set_title("Joint 2-Wasserstein errors")
             ax3.plot(joint_errors_through_training, label=self.joint_labels)
-            ax3.set_ylim([-0.01, 0.6])
+            ax3.set_ylim([-0.01, 0.4])
             ax3.set_xlabel("iterations")
         else:
             fig, (ax1, ax2) = plt.subplots(1, 1, figsize=(20, 15))
             ax2.set_xlabel("iterations")
         ax1.set_title("Individual 2-Wasserstein errors")
         ax1.plot(wass_errors_through_training, label=labels)
-        ax1.set_ylim([-0.005, 0.5])
+        ax1.set_ylim([-0.005, 0.3])
         ax1.legend(prop={'size': 15})
         ax2.set_title("Discriminator losses")
         ax2.plot(losses_through_training, label=self.joint_labels)
-        ax2.set_ylim([-0.01, 0.1])
+        ax2.set_ylim([-0.01, 0.06])
         ax2.legend(prop={'size': 15})
 
         fig.show()
@@ -595,8 +595,8 @@ class LevyGAN:
             sn = serial_num_to_load
         folder_name = f'model_saves/{self.dict_saves_folder}/'
         self.netG.load_state_dict(
-            torch.load(folder_name + f'generator_num{self.serial_number}_{descriptor}.pt', map_location=self.device))
-        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_num{self.serial_number}_{descriptor}.pt',
+            torch.load(folder_name + f'generator_num{sn}_{descriptor}.pt', map_location=self.device))
+        self.netD.load_state_dict(torch.load(folder_name + f'discriminator_num{sn}_{descriptor}.pt',
                                              map_location=self.device))
 
     def load_dicts_unstructured(self, gen_filename, discr_filename):
