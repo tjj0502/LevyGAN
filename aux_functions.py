@@ -177,55 +177,43 @@ def fast_w_indices(a_i: int, _w_dim: int):
 
 def gen_4mom_approx(_w_dim: int, _batch_size: int, _W: np.ndarray = None, _K: np.ndarray = None, _H: np.ndarray = None):
     _a_dim = int(_w_dim * (_w_dim - 1) // 2)
-
     lst = []
     for k in range(_w_dim):
         for l in range(k + 1, _w_dim):
             lst.append((k, l))
-
     if _W is None:
         __W = np.random.randn(_batch_size, _w_dim)
     else:
         __W = _W
-
     if _H is None:
         __H = sqrt(1 / 12) * np.random.randn(_batch_size, _w_dim)
     else:
         __H = _H
-
     if _K is None:
         __K = sqrt(1 / 720) * np.random.randn(_batch_size, _w_dim)
     else:
         __K = _K
-
     squared_K = np.square(__K)
     C = np.random.exponential(8 / 15, size=(_batch_size, _w_dim))
-
     p = 21130 / 25621
     c = sqrt(1 / 3) - 8 / 15
-
     ber = np.random.binomial(1, p=p, size=(_batch_size, _a_dim))
     uni = np.random.uniform(-sqrt(3), sqrt(3), size=(_batch_size, _a_dim))
     rademacher = np.ones(_a_dim) - 2 * np.random.binomial(1, 0.5, size=(_batch_size, _a_dim))
     ksi = ber * uni + (1 - ber) * rademacher
-
     def sigma(i: int, j: int):
         return np.sqrt(3 / 28 * (C[:, i] + c) * (C[:, j] + c) + 144 / 28 * (squared_K[:, i] + squared_K[:, j]))
-
     idx = 0
     for k in range(_w_dim):
         for l in range(k + 1, _w_dim):
             sig = sigma(k, l)
             # print(f"shape: {sig.shape}, k: {k}, l: {l}, sig: {sig}")
-
             # now calculate a from ksi and sigma (but store a in ksi)
             ksi[:, idx] *= sig
-
             # calculate the whole thing
             ksi[:, idx] += __H[:, k] * __W[:, l] - __W[:, k] * __H[:, l] + 12 * (
                     __K[:, k] * __H[:, l] - __H[:, k] * __K[:, l])
             idx += 1
-
     return np.concatenate((__W, ksi), axis=1)
 
 

@@ -453,6 +453,18 @@ class LevyGAN:
 
         return
 
+    def eval(self, w_in):
+        actual_bsz = w_in.shape[0]
+        noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
+        z = torch.cat((noise, w_in), dim=1)
+        self.start_time = timeit.default_timer()
+        fake_data = self.netG(z)
+        self.print_time("EVAL")
+        pruning_indices = self.unfixed_test_bsz * \
+                          torch.randint(high=self.s_dim, size=(self.unfixed_test_bsz,), device=self.device) + \
+                          torch.arange(self.unfixed_test_bsz, dtype=torch.int, device=self.device)
+        fake_data = (fake_data[pruning_indices]).detach()
+        return fake_data
 
     def model_score(self, a: float = 1.0, b: float = 0.0, c: float = 2.0):
         res = 0.0
@@ -558,7 +570,7 @@ class LevyGAN:
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 35))
             ax3.set_title("Joint 2-Wasserstein errors")
             ax3.plot(joint_errors_through_training, label=self.joint_labels)
-            ax3.set_ylim([-0.01, 0.9])
+            ax3.set_ylim([-0.01, 0.6])
             ax3.set_xlabel("iterations")
         else:
             fig, (ax1, ax2) = plt.subplots(1, 1, figsize=(20, 15))
@@ -569,7 +581,7 @@ class LevyGAN:
         ax1.legend(prop={'size': 15})
         ax2.set_title("Discriminator losses")
         ax2.plot(losses_through_training, label=self.joint_labels)
-        ax2.set_ylim([-0.01, 0.2])
+        ax2.set_ylim([-0.01, 0.1])
         ax2.legend(prop={'size': 15})
 
         fig.show()
@@ -703,6 +715,15 @@ class LevyGAN:
         for epoch in range(self.num_epochs):
             if not self.print_reports:
                 print(f"{epoch}", end="  ")
+
+            if 'custom lrs' in tr_conf:
+                lrs = tr_conf['custom lrs']
+                if epoch in lrs:
+                    lr_g_cust, lr_d_cust = lrs[epoch]
+                    opt_g = torch.optim.Adam(self.netG.parameters(), lr=lr_g_cust, betas=(beta1, beta2))
+                    opt_d = torch.optim.Adam(self.netD.parameters(), lr=lr_d_cust, betas=(beta1, beta2))
+                    print(f"changed lrs to G: {lr_g_cust}, D: {lr_d_cust}")
+
             for i, data in enumerate(whole_training_data):
                 if iters >= max_iters:
                     break

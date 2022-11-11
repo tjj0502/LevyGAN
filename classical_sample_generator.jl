@@ -10,12 +10,14 @@ using DelimitedFiles
 function gen_samples(;its::Int64 = 65536,w_dim::Int64 = 2,h:: Float64 = 1.0,
     err:: Float64 = 0.0001,fixed:: Bool = false,
     W:: Array{Float64} = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7],
+    num_chen_combinations:: Int64 = 0,
     filename = "")
 
     resDim = Int64(w_dim*(w_dim+1)/2)
     results = Array{Float64}(undef,its,resDim)
     W = W[1:w_dim]
-
+    multiplier = sqrt(2)^num_chen_combinations
+    W *= multiplier
 
     for i in 1:its
 

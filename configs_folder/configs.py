@@ -32,36 +32,44 @@ long_config = {
 }
 
 config = {
-    'w dim': 4,
-    'noise size': 62,
-    'which generator': 2,
-    'which discriminator': 2,
+    'w dim': 3,
+    'noise size': 16,
+    'which generator': 3,
+    'which discriminator': 4,
     'generator symmetry mode': 'Hsym',
     'leakyReLU slope': 0.2,
     'test bsz': 16384,
     'unfixed test bsz': 16384,
     'joint wass dist bsz': 8192,
-    'num tests for 2d': 8,
+    'num tests for 2d': 4,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
-    'should draw graphs': False,
-    'do timeing': True
+    'should draw graphs': True,
+    'do timeing': False
 }
 
 
 training_config = {
-    'num epochs': 2,
+    'num epochs': 10,
     'max iters': None,
+    'num Chen iters': 8000,
     'optimizer': 'Adam',
-    'lrG': 0.00005,
+    'lrG': 0.000008,
     'lrD': 0.0001,
     'num discr iters': 3,
-    'beta1': 0,
-    'beta2': 0.99,
+    'beta1': 0.2,
+    'beta2': 0.97,
     'Lipschitz mode': 'gp',
     'weight clipping limit': 0.01,
     'gp weight': 20.0,
     'bsz': 1024,
-    'compute joint error': False,
-    'descriptor': ''
+    'compute joint error': True,
+    'print reports': False,
+    'descriptor': '',
+    'custom lrs': {
+        0: (0.00001, 0.0001),
+        2: (0.00001, 0.00004),
+        4: (0.000004, 0.00002),
+        8: (0.000001, 0.000005)
+    }
 }
 
