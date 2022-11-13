@@ -34,8 +34,8 @@ long_config = {
 config = {
     'w dim': 3,
     'noise size': 16,
-    'which generator': 3,
-    'which discriminator': 4,
+    'which generator': 7,
+    'which discriminator': 8,
     'generator symmetry mode': 'Hsym',
     'leakyReLU slope': 0.2,
     'test bsz': 16384,
@@ -51,7 +51,7 @@ config = {
 training_config = {
     'num epochs': 10,
     'max iters': None,
-    'num Chen iters': 8000,
+    'num Chen iters': 10000,
     'optimizer': 'Adam',
     'lrG': 0.000008,
     'lrD': 0.0001,
@@ -70,6 +70,12 @@ training_config = {
         2: (0.00001, 0.00004),
         4: (0.000004, 0.00002),
         8: (0.000001, 0.000005)
-    }
+    },
+    'custom Chen lrs': {
+        0: (0.00001, 0.0001),
+        2000: (0.00001, 0.00004),
+        4000: (0.000004, 0.00002),
+        8000: (0.000001, 0.000005)
+    },
 }
 

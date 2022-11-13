@@ -586,7 +586,7 @@ A^{(i,j)}_{s,t} = \frac{1}{2} \left( \int_s^t \int_s^u dW_v^{(i)} dW_u^{(j)} - \
 \]
 
 \[
-\lnorm{A^{(i,j)}_{s,t} - F(L_1(\vW, \ldots, L_n(\vW))}{L^2(\P)} \geq \frac{1}{\pi \sqrt{n}}  \;\;\;\;\;\; \lnorm{ A^{(i,j)}_{s,t} - \E[ A^{(i,j)}_{s,t} \mid \calG_n ] }{L^2(\P)} \geq \frac{1}{2 \sqrt{2}} \frac{1}{\sqrt{n}}
+\lnorm{\theta - F(L_1(\vW), \ldots, L_n(\vW))}{L^2(\P)} \geq \frac{C}{\sqrt{n}} \approx \frac{\sqrt{2}}{\pi \sqrt{n}}  \;\;\;\;\;\; \lnorm{ A^{(i,j)}_{s,t} - \E[ A^{(i,j)}_{s,t} \mid \calG_n ] }{L^2(\P)} \geq \frac{1}{2 \sqrt{2}} \frac{1}{\sqrt{n}}
 \]
 
 \[
@@ -598,7 +598,7 @@ A^{(i,j)}_{s,t} = \frac{1}{2} \left( \int_s^t \int_s^u dW_v^{(i)} dW_u^{(j)} - \
 \]
 
 \[
-d \;\;\;\; a = d(d-1)/2
+d \;\;\;\; a = d(d-1)/2  \;\;\;\;\;\;\; n=2dp, \; h = 1  \;\;\;\;\; \ldots = \frac{\sqrt{d}}{\pi \sqrt{n}}
 \]
 
 \[
@@ -618,7 +618,7 @@ C_{\text{\tiny GAN,time}} = \epsilon_{\text{\tiny GAN}} \sqrt{t_{\text{\tiny GAN
 \]
 
 \[
-C_{\text{\tiny time}} \coloneqq \epsilon \sqrt{t}, \;\;\; C_{\text{\tiny true}} \coloneqq \epsilon \sqrt{n}
+C_{\text{\tiny time}} \coloneqq \epsilon \sqrt{t}, \;\;\; C_{\text{\tiny true}} \coloneqq \epsilon \sqrt{n} \;\;\; \epsilon_{\text{\tiny joint}} \;\;\; \epsilon_{\text{\tiny coord-wise}}
 \]
 
 \begin{align}
@@ -632,9 +632,9 @@ C_{\text{\tiny time}} \coloneqq \epsilon \sqrt{t}, \;\;\; C_{\text{\tiny true}} 
 
 \begin{align}
 	C_{\text{\tiny julia,true}} &\approx \frac{\sqrt{2}}{\pi} \approx 0.45 \\
-    C_{\text{\tiny GAN,noise}} &=  \\
+    C_{\text{\tiny GAN,noise}} &= 0.4 \\
 	C_{\text{\tiny julia,time}} &= 1.38 \times 10^{-4} \\
-    C_{\text{\tiny GAN,time}} &=  \\
+    C_{\text{\tiny GAN,time}} &= 1.42 \times 10^{-4} \\
     C_{\text{\tiny 4mom,time}} &= 6.6 \times 10^{-5} \\
     C_{\text{\tiny F\&L,time}} &=  5.5 \times 10^{-5}
 \end{align}

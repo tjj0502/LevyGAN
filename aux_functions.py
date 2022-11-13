@@ -250,13 +250,13 @@ def fourth_moments(input_samples: np.ndarray):
     return res
 
 
-def make_pretty(errs):
+def make_pretty(errs, decimal_places = 5):
     if isinstance(errs, list):
         if len(errs) == 1:
-            return float(f"{errs[0]:.5f}")
-        return [float("{0:0.4f}".format(i)) for i in errs]
+            return float(f"{errs[0]:.{decimal_places}f}")
+        return [float(f"{i:.{decimal_places}f}") for i in errs]
     if isinstance(errs, float):
-        return float(f"{errs:.5f}")
+        return float(f"{errs:.{decimal_places}f}")
     else:
         return errs
 

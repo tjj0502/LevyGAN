@@ -466,7 +466,7 @@ class LevyGAN:
         fake_data = (fake_data[pruning_indices]).detach()
         return fake_data
 
-    def model_score(self, a: float = 1.0, b: float = 0.0, c: float = 2.0):
+    def model_score(self, a: float = 20.0, b: float = 0.0, c: float = 1.0):
         res = 0.0
         res += a * mean(self.test_results['errors'])
         if b > 0.0:
@@ -815,6 +815,9 @@ class LevyGAN:
                                joint_errors_through_training=joint_errors_through_training,
                                losses_through_training=losses_through_training,
                                descriptor=f"{self.descriptor}_score_{best_score}")
+        if save_models:
+            report = self.make_report(add_line_break=False)
+            self.save_current_dicts(report=report, descriptor=f"{self.descriptor}_end_trn")
 
     def chen_train(self, tr_conf_in: dict = None, save_models=True):
         self.print_time("START CHEN TRAIN")
@@ -882,6 +885,15 @@ class LevyGAN:
 
         iters = 0
         for i in range(self.num_Chen_iters):
+
+            if 'custom Chen lrs' in tr_conf:
+                lrs = tr_conf['custom Chen lrs']
+                if iters in lrs:
+                    lr_g_cust, lr_d_cust = lrs[iters]
+                    opt_g = torch.optim.Adam(self.netG.parameters(), lr=lr_g_cust, betas=(beta1, beta2))
+                    opt_d = torch.optim.Adam(self.netD.parameters(), lr=lr_d_cust, betas=(beta1, beta2))
+                    print(f"its: {iters} changed lrs to G: {lr_g_cust}, D: {lr_d_cust}")
+
             self.print_time("TOP")
             self.netD.zero_grad()
             self.netG.zero_grad()
@@ -973,3 +985,6 @@ class LevyGAN:
                                joint_errors_through_training=joint_errors_through_training,
                                losses_through_training=losses_through_training,
                                descriptor=f"{self.descriptor}_score_{best_score}")
+        if save_models:
+            report = self.make_report(add_line_break=False)
+            self.save_current_dicts(report=report, descriptor=f"{self.descriptor}_end_trn")
