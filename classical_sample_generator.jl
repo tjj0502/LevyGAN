@@ -54,12 +54,59 @@ function gen_samples(;its::Int64 = 65536,w_dim::Int64 = 2,h:: Float64 = 1.0,
     writedlm(filename, results, ',')
 end
 
+function gen_true_levy(;its::Int64 = 65536,w_dim::Int64 = 2,
+    p:: Int = 3,fixed:: Bool = false,
+    W:: Array{Float64} = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7],
+    filename = "")
+
+    resDim = Int64(w_dim*(w_dim+1)/2)
+    results = Array{Float64}(undef,its,resDim)
+    W = W[1:w_dim]
+
+    for i in 1:its
+
+        if fixed == false
+           W = randn(w_dim)
+        end
+        II = LevyArea.levyarea(W, p, LevyArea.Milstein())
+
+        idx:: Int = w_dim+1
+        for k in 1:w_dim
+            results[i,k] = W[k]
+            #println("wiritng results[$i,$k] = $(W[k])")
+            for l in (k+1):w_dim
+                a = II[k,l]
+                results[i,idx] = a
+                idx +=1
+            end
+        end
+
+        # if i%100 == 0
+        #     println(i)
+        # end
+    end
+
+    if filename == ""
+        filename = "samples/samples_$w_dim-dim.csv"
+        if fixed
+            filename = "samples/fixed_samples_$w_dim-dim.csv"
+        end
+    end
+
+    # filename = "high_prec_samples.csv"
+
+    writedlm(filename, results, ',')
+end
+
 function time_measure(its, w_dim, h, err)
     W = [1.0,-0.5,-1.2,-0.3,0.7,0.2,-0.9,0.1,1.7]
     W = W[1:w_dim]
+    s = 0
     for i in 1:its
-        iterated_integrals(W,h,err)
+        lev = LevyArea.levyarea(W, 3, LevyArea.Milstein())
+        s += sum(lev)
     end
+    println(s)
 end
 
 function generate_all()

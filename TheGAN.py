@@ -325,7 +325,7 @@ class LevyGAN:
             loss_d_fake = prob_fake.mean(0).view(1)
             loss_d_real = prob_real.mean(0).view(1)
             loss_d = loss_d_fake - loss_d_real
-            loss_d = loss_d.item()
+            loss_d = loss_d.detach().item()
         else:
             loss_d = float('inf')
 
@@ -374,7 +374,10 @@ class LevyGAN:
         difference = np.abs(self.st_dev_W_fixed - np.sqrt(np.abs(empirical_second_moments(_a_generated))))
         return difference.mean()
 
-    def do_tests(self, comp_joint_err=False, comp_grad_norm=False, comp_loss_d=False, comp_chen_error=False, save_models=False):
+    def do_tests(self, comp_joint_err=False, comp_grad_norm=False, comp_loss_d=False, comp_chen_error=False, save_models=False, save_best_results=True):
+        self.netG.eval()
+        self.netD.eval()
+
         chen_errors = []
         if comp_chen_error or comp_grad_norm:
             unfixed_data = self.samples_torch[:self.unfixed_test_bsz]
@@ -422,15 +425,17 @@ class LevyGAN:
         flag_for_joint_err = True  # just to avoid computing joint error twice
         if sum(errors) < self.test_results['min sum']:
             self.test_results['min sum'] = sum(errors)
-            self.test_results['best fixed errors'] = make_pretty(errors)
+            if save_best_results:
+                self.test_results['best fixed errors'] = make_pretty(errors)
 
-        if comp_chen_error and (sum(chen_errors) < self.test_results['min chen sum']):
+        if comp_chen_error and (sum(chen_errors) < self.test_results['min chen sum']) and save_best_results:
             self.test_results['min chen sum'] = sum(chen_errors)
             self.test_results['best chen errors'] = make_pretty(chen_errors)
 
         report = self.make_report(add_line_break=False)
         if sum(joint_wass_errors) < sum(self.test_results['best joint errors']):
-            self.test_results['best joint errors'] = make_pretty(joint_wass_errors)
+            if save_best_results:
+                self.test_results['best joint errors'] = make_pretty(joint_wass_errors)
             if save_models:
                 # self.save_current_dicts(report=report,
                 #                         descriptor=f"{self.descriptor}_min_sum")
@@ -443,13 +448,17 @@ class LevyGAN:
             score = self.model_score(c=0.0)
 
         if score < self.test_results['best score']:
-            self.test_results['best score'] = make_pretty(score)
             report = self.make_report(add_line_break=False)
-            self.test_results['best score report'] = report
+            if save_best_results:
+                self.test_results['best score'] = make_pretty(score)
+                self.test_results['best score report'] = report
             if save_models:
                 self.save_current_dicts(report=report,
                                         descriptor=f"{self.descriptor}_max_scr")
                 print("Saved model with best score")
+
+        self.netG.train()
+        self.netD.train()
 
         return
 
@@ -919,7 +928,7 @@ class LevyGAN:
 
             loss_d_fake = prob_fake.mean(0).view(1)
             loss_d_real = prob_real.mean(0).view(1)
-            loss_d = loss_d_fake - loss_d_real
+            loss_d = loss_d_fake - 4*loss_d_real
 
             true_data_bsz = (self.s_dim * bsz)//4
 

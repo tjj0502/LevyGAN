@@ -300,8 +300,7 @@ def generate_signs(_w_dim: int):
 
 def generate_tms(_w_dim: int, device):
     _a_dim = int((_w_dim * (_w_dim - 1)) // 2)
-    signs = torch.tensor(generate_signs(_w_dim), dtype=torch.float, device=device).view(1, 2 ** _w_dim,
-                                                                                        _w_dim).contiguous()
+    signs = torch.tensor(generate_signs(_w_dim), dtype=torch.float, device=device).view(1, 2**_w_dim, _w_dim).contiguous()
     m_list = []
 
     for s in range(signs.shape[1]):
