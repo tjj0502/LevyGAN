@@ -144,6 +144,31 @@ def generator_main(cf: dict):
 
             nn.Linear(128, generator_last_width)
         ).to(device=device)
+    if which_gen == 10:
+        leakyReLU_slope = 0.2
+        layers = nn.Sequential(
+            nn.Linear(w_dim + noise_size, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, generator_last_width)
+        ).to(device=device)
 
     return layers
 
@@ -271,6 +296,38 @@ def discriminator_main(cf: dict):
             nn.LeakyReLU(leakyReLU_slope),
 
             nn.Linear(128, 1)
+        ).to(device=device)
+    if which_disc == 10:
+        layers = nn.Sequential(
+            nn.Linear(w_dim + a_dim, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(256, 1)
         ).to(device=device)
 
     return layers

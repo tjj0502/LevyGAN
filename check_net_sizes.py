@@ -1,18 +1,20 @@
 import pickle
 import time
+import torch
+import gc
 from TheGAN import LevyGAN
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 
 config = {
     'w dim': 3,
-    'noise size': 16,
-    'which generator': 4,
-    'which discriminator': 4,
+    'noise size': 61,
+    'which generator': 10,
+    'which discriminator': 10,
     'generator symmetry mode': 'Hsym',
     'leakyReLU slope': 0.2,
     'test bsz': 65536,
     'unfixed test bsz': 65536,
-    'joint wass dist bsz': 4096,
+    'joint wass dist bsz': 2048,
     'num tests for 2d': 4,
     'W fixed whole': [1.0, -0.5, -1.2, -0.3, 0.7, 0.2, -0.9, 0.1, 1.7],
     'should draw graphs': True,
@@ -20,9 +22,9 @@ config = {
 }
 
 training_config = {
-    'num epochs': 7,
+    'num epochs': 9,
     'max iters': None,
-    'num Chen iters': 3000,
+    'num Chen iters': 5000,
     'optimizer': 'Adam',
     'lrG': 0.000001,
     'lrD': 0.000002,
@@ -34,18 +36,19 @@ training_config = {
     'gp weight': 5.0,
     'bsz': 1024,
     'compute joint error': True,
-    'print reports': False,
+    'print reports': True,
     'descriptor': '',
     'custom Chen lrs': {
-            0: (0.000003, 0.00003),
-            410: (0.000002, 0.00001),
-            2410: (0.0000001, 0.0000003),
+            0: (0.0000000001, 0.00000000003),
+            1010: (0.0000001, 0.000001),
+            3010: (0.000002, 0.00001),
+            4010: (0.00001, 0.00005),
         },
     'custom lrs': {
-            0: (0.000002, 0.00002),
-            1: (0.000001, 0.000005),
-            3: (0.0000001, 0.0000003),
-            5: (0.000005, 0.00001)
+            0: (0.00001, 0.0001),
+            3: (0.000001, 0.00001),
+            5: (0.0000001, 0.000001),
+            8: (0.00001, 0.00005)
         },
 }
 
@@ -53,9 +56,12 @@ short_tr_conf = training_config.copy()
 short_tr_conf['num Chen iters'] = 20
 
 
-for gen in range(9, 10):
-    for discr in range(9, 10):
-        for trials in range(5):
+for gen in range(10,11):
+    for discr in range(10,11):
+        for trials in range(8):
+            torch.cuda.empty_cache()
+            gc.collect()
+
             config['which generator'] = gen
             config['which discriminator'] = discr
             # training_config['descriptor'] = "CLASSIC"
@@ -76,6 +82,7 @@ for gen in range(9, 10):
             levG.load_dicts(descriptor="CHEN_max_scr")
             levG.do_tests(comp_joint_err=True, save_best_results=False)
             joint_errs = levG.test_results['joint wass errors']
+            print()
             line = f"CHEN gen: {gen}, discr: {discr}, num{levG.serial_number}, best joint: {joint_errs} {report}\n"
             with open("net_test_report.txt", "a+") as f:
                 f.write(line)
@@ -93,5 +100,3 @@ for gen in range(9, 10):
             line = f"CLS+ gen: {gen}, discr: {discr}, num{levG.serial_number}, best joint: {joint_errs} {report}\n"
             with open("net_test_report.txt", "a+") as f:
                 f.write(line)
-
-

@@ -73,7 +73,7 @@ class LevyGAN:
         # Number of iterations of Chen training
         self.num_Chen_iters = 0
 
-        self.testing_frequency = 200
+        self.testing_frequency = 100
 
         self.descriptor = ""
 
@@ -479,7 +479,7 @@ class LevyGAN:
         self.netG.train()
         return fake_data
 
-    def model_score(self, a: float = 20.0, b: float = 0.0, c: float = 1.0):
+    def model_score(self, a: float = 20.0, b: float = 0.0, c: float = 0.6):
         res = 0.0
         res += a * mean(self.test_results['errors'])
         if b > 0.0:
@@ -539,7 +539,7 @@ class LevyGAN:
 
         return result_dict
 
-    def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True):
+    def make_report(self, epoch: int = None, iters: int = None, chen_iters: int = None, add_line_break=True, short = False):
         report = ""
         if add_line_break:
             line_break = "\n"
@@ -556,15 +556,30 @@ class LevyGAN:
         report += f"scr: {score:.5f}, "
         grad_norm = self.test_results['gradient norm']
         report += f"discr grad norm: {grad_norm:.5f}, "
-        report += f"discr loss(es): {make_pretty(self.test_results['loss d'])}"
+        if len(self.test_results['loss d']) > 0:
+            if short:
+                avg_loss_d = sum(self.test_results['loss d'])/len(self.test_results['loss d'])
+                report += f"discr loss(es): {make_pretty(avg_loss_d)}"
+            else:
+                report += f"discr loss(es): {make_pretty(self.test_results['loss d'])}"
         joint_wass_errors = self.test_results['joint wass errors']
         if len(joint_wass_errors) > 0:
-            report += f", joint errs: {make_pretty(joint_wass_errors)}"
+            if short:
+                avg_joint = sum(joint_wass_errors)/len(joint_wass_errors)
+                report += f", avg joint: {make_pretty(avg_joint)}"
+            else:
+                report += f", joint errs: {make_pretty(joint_wass_errors)}"
         st_dev_error = self.test_results['st dev error']
-        if st_dev_error < 100:
+        if st_dev_error < 100 and not short:
             report += f", st dev err: {st_dev_error:.5f}"
-        pretty_errors = make_pretty(self.test_results['errors'])
-        report += f"{line_break}errs: {pretty_errors}"
+        # pretty_errors = make_pretty(self.test_results['errors'])
+        # report += f"{line_break}errs: {pretty_errors}"
+        if len(self.test_results['errors']) > 0:
+            if short:
+                avg_err = sum(self.test_results['errors'])/len(self.test_results['errors'])
+                report += f" avg err: {make_pretty(avg_err)}"
+            else:
+                report +=f"{line_break}errs: {make_pretty(self.test_results['errors'])}"
 
         if len(self.test_results['chen errors']) > 0:
             pretty_chen_errors = make_pretty(self.test_results['chen errors'])
@@ -799,7 +814,7 @@ class LevyGAN:
                     self.do_tests(comp_joint_err=compute_joint_error, comp_loss_d=True, save_models=save_models)
                     self.print_time(description="AFTER TESTS")
                     if self.print_reports:
-                        report = self.make_report(epoch=epoch, iters=iters)
+                        report = self.make_report(epoch=epoch, iters=iters, short=True)
                         print(report)
                     self.print_time(description="AFTER REPORT")
                     errors = self.test_results['errors']
@@ -932,7 +947,7 @@ class LevyGAN:
 
             loss_d_fake = prob_fake.mean(0).view(1)
             loss_d_real = prob_real.mean(0).view(1)
-            loss_d = loss_d_fake - 4*loss_d_real
+            loss_d = loss_d_fake - loss_d_real
 
             true_data_bsz = (self.s_dim * bsz)//4
 
@@ -968,7 +983,7 @@ class LevyGAN:
                 self.do_tests(comp_joint_err=compute_joint_error, comp_loss_d=True, save_models=save_models)
                 self.print_time(description="AFTER TESTS")
                 if self.print_reports:
-                    report = self.make_report(chen_iters=iters)
+                    report = self.make_report(chen_iters=iters, short=True)
                     print(report)
                 self.print_time(description="AFTER REPORT")
                 errors = self.test_results['errors']
