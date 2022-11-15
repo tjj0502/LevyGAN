@@ -123,6 +123,27 @@ def generator_main(cf: dict):
 
             nn.Linear(128, generator_last_width)
         ).to(device=device)
+    if which_gen == 9:
+        leakyReLU_slope = 0.1
+        layers = nn.Sequential(
+            nn.Linear(w_dim + noise_size, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, generator_last_width)
+        ).to(device=device)
 
     return layers
 
@@ -222,6 +243,30 @@ def discriminator_main(cf: dict):
             nn.LeakyReLU(leakyReLU_slope),
 
             nn.Linear(128, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, 1)
+        ).to(device=device)
+    if which_disc == 9:
+        layers = nn.Sequential(
+            nn.Linear(w_dim + a_dim, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(leakyReLU_slope),
+
+            nn.Linear(128, 128, bias=False),
             nn.BatchNorm1d(128),
             nn.LeakyReLU(leakyReLU_slope),
 

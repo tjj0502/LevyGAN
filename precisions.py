@@ -5,8 +5,8 @@ import timeit
 config = {
     'w dim': 3,
     'noise size': 16,
-    'which generator': 7,
-    'which discriminator': 8,
+    'which generator': 9,
+    'which discriminator': 9,
     'generator symmetry mode': 'Hsym',
     'leakyReLU slope': 0.2,
     'test bsz': 16384,
@@ -18,57 +18,67 @@ config = {
     'do timeing': False
 }
 
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
+
 w_dim = 3
 a_dim = int((w_dim * (w_dim - 1)) // 2)
 bsz = 262144
 data = np.genfromtxt(f'samples/high_prec_samples_altfixed_3-dim.csv', dtype=float, delimiter=',', max_rows=bsz)
 a_true = data[:, w_dim:(w_dim + a_dim)]
 W = data[:, :w_dim]
-W_torch = torch.tensor(W, dtype=torch.float, device=torch.device('cuda'))
+W_torch = torch.tensor(W, dtype=torch.float, device=device)
 print(data.shape)
 
 def check_precision(_samples, _elapsed, name):
     a_samples = _samples[:, w_dim:(w_dim + a_dim)]
     err = [sqrt(ot.wasserstein_1d(a_true[:, i], a_samples[:, i], p=2)) for i in range(a_dim)]
+    avg_err = sum(err) / len(err)
     joint_err = joint_wass_dist(a_true[:20000], a_samples[:20000])
-    print(f"{name} time:{elapsed}, individual errs:{make_pretty(err)}, joint err: {joint_err}")
+    print(f"{name} time: {make_pretty(_elapsed,4)}, avg individual err: {make_pretty(avg_err)}, joint err: {make_pretty(joint_err)}")
 
 def check_precision_a(_a_samples, _elapsed, name):
     err = [sqrt(ot.wasserstein_1d(a_true[:, i], _a_samples[:, i], p=2)) for i in range(a_dim)]
+    avg_err = sum(err)/len(err)
     joint_err = joint_wass_dist(a_true[:20000], _a_samples[:20000])
-    print(f"{name} time:{elapsed}, individual errs:{make_pretty(err)}, joint err: {joint_err}")
+    print(f"{name} time: {make_pretty(_elapsed,4)}, avg individual err: {make_pretty(avg_err)}, joint err: {make_pretty(joint_err)}")
 
-samples = np.genfromtxt(f'samples/mid_prec_fixed_samples_{w_dim}-dim.csv', dtype=float, delimiter=',', max_rows=bsz) # 0.68s
+samples = np.genfromtxt(f'samples/mid_prec_fixed_samples_{w_dim}-dim.csv', dtype=float, delimiter=',', max_rows=bsz)
 elapsed = 0.111565
 check_precision(samples, elapsed, "julia p3")
 
-samples = np.genfromtxt(f'samples/p4_samples_3-dim.csv', dtype=float, delimiter=',', max_rows=bsz) # 0.68s
-elapsed = 0.162031
+samples = np.genfromtxt(f'samples/p4_samples_3-dim.csv', dtype=float, delimiter=',', max_rows=bsz)
+elapsed = 0.162131
 check_precision(samples, elapsed, "julia p4")
 
 
 start_time = timeit.default_timer()
 samples = gen_2mom_approx(w_dim, bsz, _W = W)
 elapsed = timeit.default_timer() - start_time
-check_precision(samples, elapsed, "2mom")
+check_precision(samples, elapsed, "2mom_apx")
 
 start_time = timeit.default_timer()
 samples = gen_4mom_approx(w_dim, bsz, _W=W)
 elapsed = timeit.default_timer() - start_time
-check_precision(samples, elapsed, "4mom")
+check_precision(samples, elapsed, "4mom_apx")
 
-T, M, S = generate_tms(w_dim, torch.device('cpu'))
+
+T, M, S = generate_tms(w_dim, device)
 start_time = timeit.default_timer()
-h = sqrt(1 / 12) * torch.randn((bsz, w_dim), dtype=torch.float, device=torch.device('cuda'))
-wth = aux_compute_wth(W_torch, h, S, T, w_dim).detach()
-b = sqrt(1 / 12) * torch.randn((bsz, w_dim), dtype=torch.float, device=torch.device('cuda'))
+h = sqrt(1 / 12) * torch.randn((bsz, w_dim), dtype=torch.float, device=device)
+b = sqrt(1 / 12) * torch.randn((bsz, a_dim), dtype=torch.float, device=device)
+wth = aux_compute_wth(W_torch, h, S, T, w_dim)
 a_wthmb = aux_compute_wthmb(wth, b, M, w_dim)
 elapsed = timeit.default_timer() - start_time
 a_wthmb_np = a_wthmb.cpu().numpy()
-check_precision_a(a_wthmb_np, elapsed, "F&L")
+check_precision_a(a_wthmb_np, elapsed, "F and L ")
 
 levG = LevyGAN(config_in=config, do_load_samples=False)
-levG.do_timeing = True
-levG.load_dicts(serial_num_to_load=3, descriptor="CHEN_max_scr")
-a_gan_np = (levG.eval(W_torch).detach()[:, w_dim:(w_dim + a_dim)]).numpy()
-check_precision_a(a_gan_np, elapsed, "GAN")
+levG.load_dicts(serial_num_to_load=4, descriptor="CLAS_max_scr")
+start_time = timeit.default_timer()
+samples = levG.eval(W_torch)
+elapsed = timeit.default_timer() - start_time
+a_gan_np = (samples.detach()[:, w_dim:(w_dim + a_dim)]).cpu().numpy()
+check_precision_a(a_gan_np, elapsed, "GAN     ")

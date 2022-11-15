@@ -109,7 +109,7 @@ class LevyGAN:
         # ============ Testing config ============
         self.num_tests_for_lowdim = cf['num tests for 2d']
         if self.w_dim == 3 and self.num_tests_for_lowdim > 7:
-            self.num_tests_for_lowdim = 7
+            self.num_tests_for_lowdim = 5
 
         self.test_bsz = cf['test bsz']
         self.unfixed_test_bsz = cf['unfixed test bsz']
@@ -140,7 +140,7 @@ class LevyGAN:
         if self.w_dim <= 3:
             self.joint_labels = []
             for i in range(self.num_tests_for_lowdim):
-                data = np.genfromtxt(f"samples/fixed_samples_{self.w_dim}-dim{i + 1}.csv", dtype=float, delimiter=',')
+                data = np.genfromtxt(f"samples/fixed_samples_{self.w_dim}-dim{i + 3}.csv", dtype=float, delimiter=',')
                 self.fixed_data_for_lowdim.append(data)
                 w = list(data[0, :self.w_dim])
                 self.joint_labels.append(w)
@@ -436,10 +436,10 @@ class LevyGAN:
         if sum(joint_wass_errors) < sum(self.test_results['best joint errors']):
             if save_best_results:
                 self.test_results['best joint errors'] = make_pretty(joint_wass_errors)
-            if save_models:
+            # if save_models:
                 # self.save_current_dicts(report=report,
                 #                         descriptor=f"{self.descriptor}_min_sum")
-                print("Warning: not saving on min sum")
+                # print("Warning: not saving on min sum")
 
 
         if comp_joint_err:
@@ -455,7 +455,7 @@ class LevyGAN:
             if save_models:
                 self.save_current_dicts(report=report,
                                         descriptor=f"{self.descriptor}_max_scr")
-                print("Saved model with best score")
+                print(f"Saved model with best score: {make_pretty(score)}")
 
         self.netG.train()
         self.netD.train()
@@ -464,15 +464,19 @@ class LevyGAN:
 
     def eval(self, w_in):
         actual_bsz = w_in.shape[0]
+        self.netG.eval()
+        #self.start_time = timeit.default_timer()
         noise = torch.randn((actual_bsz, self.noise_size), dtype=torch.float, device=self.device)
         z = torch.cat((noise, w_in), dim=1)
-        self.start_time = timeit.default_timer()
         fake_data = self.netG(z)
-        self.print_time("EVAL")
+        #self.print_time("EVAL")
+
         pruning_indices = actual_bsz * \
                           torch.randint(high=self.s_dim, size=(actual_bsz,), device=self.device) + \
                           torch.arange(actual_bsz, dtype=torch.int, device=self.device)
         fake_data = (fake_data[pruning_indices]).detach()
+        #elapsed = timeit.default_timer() - self.start_time
+        self.netG.train()
         return fake_data
 
     def model_score(self, a: float = 20.0, b: float = 0.0, c: float = 1.0):

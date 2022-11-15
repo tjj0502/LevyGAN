@@ -20,9 +20,9 @@ config = {
 }
 
 training_config = {
-    'num epochs': 5,
+    'num epochs': 7,
     'max iters': None,
-    'num Chen iters': 5000,
+    'num Chen iters': 3000,
     'optimizer': 'Adam',
     'lrG': 0.000001,
     'lrD': 0.000002,
@@ -37,23 +37,24 @@ training_config = {
     'print reports': False,
     'descriptor': '',
     'custom Chen lrs': {
-            0: (0.00005, 0.0001),
-            2010: (0.00001, 0.00005),
-            3010: (0.000001, 0.000003),
+            0: (0.000003, 0.00003),
+            410: (0.000002, 0.00001),
+            2410: (0.0000001, 0.0000003),
         },
     'custom lrs': {
-            0: (0.00002, 0.0001),
-            3: (0.000002, 0.00001),
-            4: (0.0000005, 0.000001)
+            0: (0.000002, 0.00002),
+            1: (0.000001, 0.000005),
+            3: (0.0000001, 0.0000003),
+            5: (0.000005, 0.00001)
         },
 }
 
 short_tr_conf = training_config.copy()
-short_tr_conf['num Chen iters'] = 30
+short_tr_conf['num Chen iters'] = 20
 
 
-for gen in range(7, 8):
-    for discr in range(8, 9):
+for gen in range(9, 10):
+    for discr in range(9, 10):
         for trials in range(5):
             config['which generator'] = gen
             config['which discriminator'] = discr
