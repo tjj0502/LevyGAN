@@ -70,10 +70,10 @@ h = sqrt(1 / 12) * torch.randn((bsz, w_dim), dtype=torch.float, device=device)
 b = sqrt(1 / 12) * torch.randn((bsz, a_dim), dtype=torch.float, device=device)
 wth = aux_compute_wth(W_torch, h, S, T, w_dim)
 a_wthmb = aux_compute_wthmb(wth, b, M, w_dim)
-xtra = a_wthmb[0,0]
+x = a_wthmb[0,0].item()
 
 levG = LevyGAN(config_in=config, do_load_samples=False)
-levG.load_dicts(serial_num_to_load=13, descriptor="CLAS_max_scr")
+levG.load_dicts(serial_num_to_load=22, descriptor="CLAS_max_scr")
 start_time = timeit.default_timer()
 samples = levG.eval(W_torch)
 elapsed = timeit.default_timer() - start_time

@@ -3,7 +3,7 @@ import torch
 from math import sqrt
 
 from aux_functions import generate_tms
-from models import generator_main
+from nets import generator_main
 
 
 class Generator(nn.Module):

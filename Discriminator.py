@@ -1,5 +1,5 @@
 import torch.nn as nn
-from models import discriminator_main
+from nets import discriminator_main
 
 
 class Discriminator(nn.Module):
