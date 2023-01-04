@@ -7,6 +7,17 @@ https://docs.google.com/presentation/d/1A4vU1GdRtKQ6DYr1jp3IxLyiqeP5exLBZhLOLna9
 
 I will soon also write a dissertation on this, and will upload it here as soon as I can.
 
+Here is a quick breakdown of the relevant .py files and what you can find where (for a conceptual walkthrough, look further down):
+- TheGAN.py: training, testing, measuring errors, logging, drawing graphs, saving dictionaries...
+- nets.py: neural nets of various depths and widths
+- Generator.py, Discriminator.py: the other logic in the models built around the neural nets, most of it related to Bridge-Flipping (see below)
+- aux_functions.py: random functions like those for computing some statistical properties of distributions, most of it just there for convenience
+- bayesian_hyperparam_opt.py: exactly what you think
+- precisions.py: tries various methods, computes their precision and runtime (used for final results)
+- the .ipynb files for testing stuff on the fly, essentially just scrap paper
+- the rest is not very important
+
+
 In short I am using a WGAN-GP to generate samples of Levy-area (see Chen_relation.pdf for a definition of Levy area in 2D or chapter 7 of [1] for the general formula).
 
 The motivation for this is Milstein’s method for approximating SDEs, which has strong convergence of O(h) (as opposed to Euler-Murayama with O(h^1/2)), but requires access to samples of Levy-area. The issue is that for W of dimension 3 or higher no one has so far found sufficiently fast methods of generating Levy-area for this to be worth it. Here GANs are useful since they are good at learning vaguely bell-shaped distributions, and while they tend to be hard to train, once they are, they are fast to evaluate. But I only need to train a GAN once to subsequently use it in as many applications of Milstein’s method as I want. Furthermore slow training isn’t an issue, since generating the training samples classically takes a lot of time anyway. In particular I use conditional GANs, where I can input a particular increment of W and it generates samples of Levy-area conditional on that. There is still some hyperparameter optimization and general tweaking to be done, but even in its unfinished form my GAN is significantly faster than state-of-the-art classical methods, while offering the same precision.
@@ -23,10 +34,7 @@ With flipping Brownian bridges I mean the following. Instead of generating the e
 ![Screenshot from 2023-01-04 21-17-53](https://user-images.githubusercontent.com/66168650/210654583-c2023ef4-4b13-4ef8-9cf8-fa15615cb487.png)
 ![Screenshot from 2023-01-04 21-18-25](https://user-images.githubusercontent.com/66168650/210654598-807f2559-5e1f-4ccd-b7e1-a1500d11ba6f.png)
 
-
-
 In the file classical_sample_generator.jl I use the package LevyArea from [8].
-
 
 References:
 1. Foster, J. M. Numerical Approximations for Stochastic Differential Equations, 2020.
